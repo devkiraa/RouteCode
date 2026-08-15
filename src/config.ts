@@ -122,7 +122,7 @@ export function saveSystem(cfg: SystemConfig): void {
 export function ensureConfigFiles(): Settings {
   if (!existsSync(SETTINGS_PATH)) {
     saveSettings({ openrouterKeys: [] });
-    console.log("  [setup] Created settings.json — add your OpenRouter API keys to it and re-run.");
+    console.log(`  [setup] Created ${SETTINGS_PATH} — add your OpenRouter API keys to it.`);
   }
   return loadSettings();
 }
