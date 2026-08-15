@@ -338,7 +338,7 @@ async function main(): Promise<void> {
       );
     } else {
       try {
-        const result = writeClaudeSettings(target, actualPort);
+        const result = writeClaudeSettings(target, actualPort ?? sys.port);
         if (result.changed) {
           console.log(`  ✓ Claude Code settings updated: ${target}`);
           for (const change of result.changes) console.log(`      ${change}`);

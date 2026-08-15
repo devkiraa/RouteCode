@@ -489,7 +489,7 @@ export function createRouterServer(deps: RouterDeps) {
     fetch: handler,
   });
 
-  return { server, url: server.url, ready: server.ready };
+  return { server, url: server.url, ready: (server as unknown as { ready?: Promise<void> }).ready ?? Promise.resolve() };
 }
 
 export type RouterHandle = ReturnType<typeof createRouterServer>;

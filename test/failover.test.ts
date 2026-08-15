@@ -221,7 +221,7 @@ describe("gateway endpoints", () => {
     // pickOrder should now proactively prefer key2 over key1
     const newOrder = pool.pickOrder();
     expect(newOrder[0].key).toBe("sk-key2");
-    expect(pool.list()[0].predictiveScore).toBeLessThan(pool.list()[1].predictiveScore);
+    expect(pool.list()[0].predictiveScore ?? 0).toBeLessThan(pool.list()[1].predictiveScore ?? 0);
   });
 
   test("proactive GET /v1/key probing and 402 credit limit scoring", async () => {

@@ -636,6 +636,16 @@
           </div>
         </div>
       </div>
+  </div>
+
+  <!-- Log Detail Modal -->
+  <div id="log-modal" class="modal-backdrop" style="display: none;" onclick="closeLogModal(event)">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">Request Payload Details</div>
+        <button class="btn-close" onclick="closeLogModal()">✕</button>
+      </div>
+      <div id="modal-content" class="modal-body"></div>
     </div>
   </div>
 
@@ -924,35 +934,8 @@
       currentPage += delta;
       renderLogs();
     }
-  </script>
 
-  <!-- Log Detail Modal -->
-  <div id="log-modal" class="modal-backdrop" style="display: none;" onclick="closeLogModal(event)">
-    <div class="modal-card" onclick="event.stopPropagation()">
-      <div class="modal-header">
-        <div class="modal-title">Request Payload Details</div>
-        <button class="btn-close" onclick="closeLogModal()">✕</button>
-      </div>
-      <div id="modal-content" class="modal-body"></div>
-    </div>
-  </div>
-
-  <script>
-    let currentData = null;
-    let keyList = [];
-    let revealedKeys = new Set();
-    let chartInstance = null;
     let configLoaded = false;
-
-    // Pagination State
-    let currentPage = 1;
-    let pageSize = 10;
-
-    function formatUptime(seconds) {
-      const h = Math.floor(seconds / 3600);
-      const m = Math.floor((seconds % 3600) / 60);
-      const s = seconds % 60;
-      if (h > 0) return `${h}h ${m}m ${s}s`;
       if (m > 0) return `${m}m ${s}s`;
       return `${s}s`;
     }
