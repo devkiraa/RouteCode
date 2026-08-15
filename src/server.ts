@@ -118,7 +118,11 @@ export function createRouterServer(deps: RouterDeps) {
     // Claude Code picks gateway models by their advertised alias — decode it to
     // the real OpenRouter id before resolving so the request routes correctly.
     const realRequested = requested ? realIdForGateway(requested) : requested;
-    const resolved = deps.resolveModel(realRequested);
+
+    // If the decoded model matches a custom provider (e.g. opencode/deepseek-v4-flash-free),
+    // use it directly — do NOT fall through to OpenRouter free model resolution.
+    const providerMatch = realRequested ? findProviderForModel(realRequested) : null;
+    const resolved = providerMatch ? realRequested : deps.resolveModel(realRequested);
     if (!resolved) {
       return errorResponse(500, "api_error", "No free OpenRouter models are available — the router cannot route requests.");
     }
