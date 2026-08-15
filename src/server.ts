@@ -249,8 +249,18 @@ export function createRouterServer(deps: RouterDeps) {
         }
       }
 
-      // Only model-level failures (404/429) switch models — key-level errors
-      // (5xx, network, auth) are returned as-is.
+      // If all keys in the pool failed with account-wide daily 429 (free-models-per-day),
+      // do not cycle through other models on dead keys — fail fast.
+      const isDailyCapError = lastBody.includes("free-models-per-day") || lastBody.includes("daily limit");
+      const allKeysExhausted = lastStatus === 429 && isDailyCapError && effectiveAttempts.every((k) => !deps.keyPool.isHealthy(k));
+      if (allKeysExhausted) {
+        log(`${id} ✗ all ${effectiveAttempts.length} key(s) in pool hit daily rate limit (free-models-per-day) — stopping model fallback`);
+        log(`  ⚠ OpenRouter 429 Daily Limit Reached across all keys in pool.`);
+        log(`  💡 Solution: Add another OpenRouter API key in dashboard (http://localhost:8080/dashboard) to double quota, or deposit $10 at openrouter.ai to unlock 1,000 free reqs/day.`);
+        break;
+      }
+
+      // Model-level 404 (model unavailable) or single-key 429 switches models
       if ((lastStatus === 404 || lastStatus === 429) && ci < candidates.length - 1) {
         triedFallback = true;
         log(`${id} ~ model "${candidate}" failed (${lastStatus}) → falling back to "${candidates[ci + 1]}"`);
@@ -259,7 +269,7 @@ export function createRouterServer(deps: RouterDeps) {
       break;
     }
 
-    log(`${id} ✗ all ${candidates.length} model(s) failed (last: ${lastStatus})`);
+    log(`${id} ✗ request failed (status: ${lastStatus})`);
     return new Response(lastBody, {
       status: lastStatus,
       headers: { "content-type": "application/json" },
