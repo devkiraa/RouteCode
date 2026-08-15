@@ -540,7 +540,7 @@
 
     <!-- Main Two Column Grid -->
     <div class="two-col">
-      <!-- Left Column: Latency Chart & Live Logs -->
+      <!-- Left Column: Latency Chart -->
       <div style="display: flex; flex-direction: column; gap: 24px;">
         <div class="section-card">
           <div class="section-header">
@@ -548,50 +548,6 @@
           </div>
           <div class="chart-container">
             <canvas id="latency-chart-canvas"></canvas>
-          </div>
-        </div>
-
-        <div class="section-card">
-          <div class="section-header">
-            <div class="section-title">Live Request Logs</div>
-            <div style="display: flex; gap: 8px; align-items: center;">
-              <input type="text" id="log-search" class="input-field" style="width: 180px; padding: 6px 10px;" placeholder="Search logs..." oninput="onSearchChange()">
-              <button class="btn" style="padding: 6px 10px; font-size: 12px;" onclick="exportLogsJSON()">Export JSON</button>
-            </div>
-          </div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>ID</th>
-                  <th>Model</th>
-                  <th>Key</th>
-                  <th>Status</th>
-                  <th>Latency</th>
-                </tr>
-              </thead>
-              <tbody id="logs-tbody">
-                <tr><td colspan="6" style="text-align: center; padding: 24px; color: var(--text-muted);">No requests recorded yet. Make a request via Claude Code!</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Pagination Footer -->
-          <div class="pagination-bar">
-            <div id="pagination-info">Showing 0 of 0 logs</div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <label for="page-size-select" style="font-size: 12px;">Per page:</label>
-              <select id="page-size-select" class="select-input" style="width: 64px; padding: 4px;" onchange="onPageSizeChange(this.value)">
-                <option value="10" selected>10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-              <button id="btn-prev-page" class="btn" style="padding: 4px 8px;" onclick="changePage(-1)">Prev</button>
-              <span id="page-num-display" style="font-weight: 600; font-size: 12px;">Page 1</span>
-              <button id="btn-next-page" class="btn" style="padding: 4px 8px;" onclick="changePage(1)">Next</button>
-            </div>
           </div>
         </div>
       </div>
@@ -839,7 +795,6 @@
       document.getElementById('val-avg-latency').textContent = `Avg Latency: ${avgLat}ms`;
 
       renderCloudflareChart(data.latencyHistory || []);
-      renderLogs();
       renderModelStats(data.modelStats || {});
     }
 
