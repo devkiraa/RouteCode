@@ -556,6 +556,35 @@ export function createRouterServer(deps: RouterDeps) {
     return errorResponse(500, "api_error", "Could not load logs template.");
   }
 
+  function handleModelsPage(): Response {
+    let currentDir = "";
+    try {
+      currentDir = dirname(fileURLToPath(import.meta.url));
+    } catch {
+      /* ignore */
+    }
+
+    const candidates = [
+      resolve(PROJECT_ROOT, "src", "models.html"),
+      resolve(PROJECT_ROOT, "models.html"),
+      resolve(currentDir, "src", "models.html"),
+      resolve(currentDir, "models.html"),
+      resolve(process.cwd(), "src", "models.html"),
+    ];
+
+    for (const p of candidates) {
+      if (p && existsSync(p)) {
+        try {
+          const html = readFileSync(p, "utf8");
+          return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
+        } catch {
+          /* try next */
+        }
+      }
+    }
+    return errorResponse(500, "api_error", "Could not load models template.");
+  }
+
   async function handler(req: Request): Promise<Response> {
     const url = new URL(req.url);
     const path = url.pathname;
@@ -565,6 +594,7 @@ export function createRouterServer(deps: RouterDeps) {
     if (req.method === "GET" && path === "/v1/models") return handleModels();
     if (req.method === "GET" && path === "/health") return handleHealth();
     if (req.method === "GET" && path === "/dashboard") return handleDashboard();
+    if (req.method === "GET" && path === "/models") return handleModelsPage();
     if (req.method === "GET" && path === "/logs") return handleLogsPage();
     if (req.method === "GET" && path === "/api/stats") return handleStats();
     if (req.method === "GET" && path === "/api/config") return handleGetConfig();

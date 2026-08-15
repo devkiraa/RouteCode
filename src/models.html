@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RouteCode — Models Catalog</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --border: #E2E8F0;
+      --border-hover: #CBD5E1;
+      --text-primary: #0F172A;
+      --text-secondary: #475569;
+      --text-muted: #94A3B8;
+      --primary: #2563EB;
+      --primary-hover: #1D4ED8;
+      --primary-subtle: #EFF6FF;
+      --success: #10B981;
+      --success-subtle: #ECFDF5;
+      --warning: #F59E0B;
+      --warning-subtle: #FFFBEB;
+      --danger: #EF4444;
+      --danger-subtle: #FEF2F2;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+      --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    [data-theme="dark"] {
+      --bg: #0B0F17;
+      --card-bg: #151D2A;
+      --border: #1E293B;
+      --border-hover: #334155;
+      --text-primary: #F8FAFC;
+      --text-secondary: #94A3B8;
+      --text-muted: #64748B;
+      --primary: #3B82F6;
+      --primary-hover: #2563EB;
+      --primary-subtle: rgba(59, 130, 246, 0.12);
+      --success: #10B981;
+      --success-subtle: rgba(16, 185, 129, 0.12);
+      --warning: #F59E0B;
+      --warning-subtle: rgba(245, 158, 11, 0.12);
+      --danger: #EF4444;
+      --danger-subtle: rgba(239, 68, 68, 0.12);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-primary);
+      line-height: 1.5;
+      padding-bottom: 60px;
+      transition: background-color 0.2s, color 0.2s;
+    }
+
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Header & Navigation */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 28px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #2563EB, #4F46E5);
+      color: white;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 22px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+    .brand-text h1 {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--text-primary);
+    }
+    .brand-text p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 4px;
+      background-color: var(--card-bg);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+    }
+    .nav-tab {
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .nav-tab:hover { color: var(--text-primary); }
+    .nav-tab.active {
+      background-color: var(--primary);
+      color: white;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background-color: var(--card-bg);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      box-shadow: var(--shadow-sm);
+    }
+    .btn:hover {
+      border-color: var(--border-hover);
+      background-color: var(--bg);
+    }
+    .btn-primary { background-color: var(--primary); border-color: var(--primary); color: white; }
+    .btn-primary:hover { background-color: var(--primary-hover); }
+    .btn-icon { padding: 8px; border-radius: var(--radius-sm); }
+
+    /* Section Cards */
+    .section-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 24px;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .input-field, .select-input {
+      padding: 8px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background-color: var(--card-bg);
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .input-field:focus, .select-input:focus { border-color: var(--primary); }
+
+    .models-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+    }
+    .model-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      background-color: var(--card-bg);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: border-color 0.15s;
+    }
+    .model-card:hover { border-color: var(--border-hover); }
+    .model-title { font-weight: 700; font-size: 14px; color: var(--text-primary); }
+    .model-id { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-muted); margin-top: 4px; word-break: break-all; }
+    .model-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      background-color: var(--primary-subtle);
+      color: var(--primary);
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-icon">R</div>
+        <div class="brand-text">
+          <h1>RouteCode</h1>
+          <p>Claude Code × OpenRouter Gateway Console</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs">
+        <a href="/dashboard" class="nav-tab">Overview</a>
+        <a href="/models" class="nav-tab active">Models</a>
+        <a href="/logs" class="nav-tab">Live Request Logs</a>
+      </nav>
+
+      <div class="header-actions">
+        <button class="btn btn-icon" onclick="toggleTheme()" title="Toggle Dark/Light Theme">
+          <svg id="theme-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+        <button class="btn" onclick="fetchModels()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          Refresh
+        </button>
+      </div>
+    </header>
+
+    <!-- Default Model Override Selector -->
+    <div class="section-card">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Default Model Override</div>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">Force all incoming requests to target a specific model, or keep Auto (Claude Code picks).</p>
+        </div>
+      </div>
+      <div style="display: flex; gap: 16px; align-items: center;">
+        <select id="default-model-select" class="select-input" style="max-width: 480px;" onchange="saveDefaultModel(this.value)">
+          <option value="">Auto (Claude Code picks from catalog)</option>
+        </select>
+        <span id="save-status" style="font-size: 12px; font-weight: 600; color: var(--success); display: none;">✓ Saved!</span>
+      </div>
+    </div>
+
+    <!-- Models Catalog -->
+    <div class="section-card">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Available Models Catalog</div>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">All active models across OpenRouter, ZCode API, OpenCode Public, and Custom Providers (available in Claude Code's /model picker).</p>
+        </div>
+        <input type="text" id="model-search" class="input-field" style="width: 240px;" placeholder="Search models..." oninput="renderModels()">
+      </div>
+
+      <div id="models-grid-container" class="models-grid">
+        <div style="grid-column: 1/-1; text-align: center; padding: 32px; color: var(--text-muted);">Loading available models...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allModels = [];
+
+    function toggleTheme() {
+      const isDark = document.body.getAttribute('data-theme') === 'dark';
+      document.body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      localStorage.setItem('routecode-theme', isDark ? 'light' : 'dark');
+    }
+
+    if (localStorage.getItem('routecode-theme') === 'dark') {
+      document.body.setAttribute('data-theme', 'dark');
+    }
+
+    async function fetchModels() {
+      try {
+        const resConfig = await fetch('/api/config');
+        if (!resConfig.ok) return;
+        const configData = await resConfig.json();
+        allModels = configData.models || [];
+
+        const select = document.getElementById('default-model-select');
+        select.innerHTML = '<option value="">Auto (Claude Code picks from catalog)</option>' +
+          allModels.map(m => `<option value="${m.id}">${m.name || m.id}</option>`).join('');
+        select.value = configData.defaultModel || '';
+
+        renderModels();
+      } catch (e) {
+        console.error('Failed to fetch models:', e);
+      }
+    }
+
+    async function saveDefaultModel(modelId) {
+      try {
+        await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ defaultModel: modelId || null }),
+        });
+        const status = document.getElementById('save-status');
+        status.style.display = 'inline';
+        setTimeout(() => { status.style.display = 'none'; }, 2000);
+      } catch (e) {
+        console.error('Failed to save default model:', e);
+      }
+    }
+
+    function renderModels() {
+      const query = (document.getElementById('model-search').value || '').toLowerCase();
+      const container = document.getElementById('models-grid-container');
+
+      const filtered = allModels.filter(m => 
+        (m.name || '').toLowerCase().includes(query) ||
+        m.id.toLowerCase().includes(query)
+      );
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 32px; color: var(--text-muted);">No models match your search query.</div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map(m => {
+        let providerTag = 'OpenRouter Free';
+        if (m.id.includes('zcode')) providerTag = 'ZCode API';
+        else if (m.id.includes('opencode')) providerTag = 'OpenCode Public';
+
+        return `
+          <div class="model-card">
+            <div>
+              <div class="model-title">${m.name || m.id}</div>
+              <div class="model-id">${m.id}</div>
+            </div>
+            <div>
+              <span class="model-badge">${providerTag}</span>
+              <button class="btn" style="width: 100%; margin-top: 12px; padding: 6px; font-size: 12px; justify-content: center;" onclick="saveDefaultModel('${m.id}'); document.getElementById('default-model-select').value='${m.id}';">
+                Set as Default
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    fetchModels();
+  </script>
+</body>
+</html>

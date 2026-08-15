@@ -443,6 +443,7 @@
       <!-- Navigation Tabs -->
       <nav class="nav-tabs">
         <a href="/dashboard" class="nav-tab active">Overview</a>
+        <a href="/models" class="nav-tab">Models</a>
         <a href="/logs" class="nav-tab">Live Request Logs</a>
       </nav>
 
@@ -492,10 +493,19 @@
           <div class="section-title">OpenRouter API Key Management</div>
           <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Automatic proactive health scoring & rotation across account keys.</p>
         </div>
-        <button class="btn btn-primary" onclick="toggleAddForm()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-          Add API Key
-        </button>
+        <div style="display: flex; gap: 12px; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Rotation Strategy:</label>
+            <select id="config-strategy" class="select-input" style="padding: 6px 10px;" onchange="updateDashboardConfig()">
+              <option value="predictive">Predictive Health Score</option>
+              <option value="roundrobin">Round-Robin</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="toggleAddForm()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Add API Key
+          </button>
+        </div>
       </div>
 
       <!-- Add Key Form -->
@@ -527,31 +537,6 @@
       </div>
       <div id="providers-list-container" style="display: flex; flex-direction: column; gap: 12px;">
         <div style="text-align: center; padding: 16px; color: var(--text-muted);">Loading providers...</div>
-      </div>
-    </div>
-
-    <!-- Router Configuration Section -->
-    <div class="section-card">
-      <div class="section-header">
-        <div>
-          <div class="section-title">Router Configuration & Strategy</div>
-          <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Customize default model override and key rotation mode live.</p>
-        </div>
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-        <div>
-          <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">Default Model Override</label>
-          <select id="config-default-model" class="select-input" onchange="updateDashboardConfig()">
-            <option value="">Auto (Claude Code picks from free list)</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">Routing Strategy</label>
-          <select id="config-strategy" class="select-input" onchange="updateDashboardConfig()">
-            <option value="predictive">Predictive Health Score (Smartest)</option>
-            <option value="roundrobin">Round-Robin (Equal Distribution)</option>
-          </select>
-        </div>
       </div>
     </div>
 
@@ -750,16 +735,10 @@
         const res = await fetch('/api/config');
         if (!res.ok) return;
         const config = await res.json();
-        const select = document.getElementById('config-default-model');
-        const curVal = select.value;
-        select.innerHTML = '<option value="">Auto (Claude Code picks from free list)</option>' +
-          config.models.map(m => `<option value="${m.id}">${m.id}</option>`).join('');
-        if (!configLoaded) {
-          select.value = config.defaultModel || '';
-          document.getElementById('config-strategy').value = config.roundRobin ? 'roundrobin' : 'predictive';
+        const stratEl = document.getElementById('config-strategy');
+        if (stratEl && !configLoaded) {
+          stratEl.value = config.roundRobin ? 'roundrobin' : 'predictive';
           configLoaded = true;
-        } else {
-          select.value = curVal;
         }
       } catch (e) {
         console.error('Failed to fetch config:', e);
@@ -767,13 +746,13 @@
     }
 
     async function updateDashboardConfig() {
-      const defaultModel = document.getElementById('config-default-model').value || null;
-      const roundRobin = document.getElementById('config-strategy').value === 'roundrobin';
+      const stratEl = document.getElementById('config-strategy');
+      const roundRobin = stratEl ? stratEl.value === 'roundrobin' : true;
       try {
         await fetch('/api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ defaultModel, roundRobin }),
+          body: JSON.stringify({ roundRobin }),
         });
         fetchStats();
       } catch (e) {

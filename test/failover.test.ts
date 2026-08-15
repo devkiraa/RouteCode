@@ -156,6 +156,13 @@ describe("gateway endpoints", () => {
     expect(await res.text()).toContain("RouteCode");
   });
 
+  test("GET /models serves models HTML page", async () => {
+    const res = await fetch(`${routerUrl}/models`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(await res.text()).toContain("RouteCode");
+  });
+
   test("GET /api/stats returns telemetry stats JSON", async () => {
     const res = await fetch(`${routerUrl}/api/stats`);
     expect(res.status).toBe(200);
