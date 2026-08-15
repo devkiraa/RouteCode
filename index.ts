@@ -518,6 +518,7 @@ async function main(): Promise<void> {
   }
 
   process.stdout.write("router> ");
+  rl.on("SIGINT", () => void gracefulShutdown("Ctrl+C"));
   process.on("SIGINT", () => void gracefulShutdown("Ctrl+C"));
   process.on("SIGTERM", () => void gracefulShutdown("SIGTERM"));
   process.on("SIGHUP", () => void gracefulShutdown("SIGHUP"));
