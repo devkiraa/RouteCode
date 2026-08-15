@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenRouter Claude Gateway — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #F8FAFC;
+      --surface: #FFFFFF;
+      --surface-border: #E2E8F0;
+      --surface-hover: #F1F5F9;
+      --text: #0F172A;
+      --text-muted: #64748B;
+      --primary: #2563EB;
+      --primary-hover: #1D4ED8;
+      --primary-subtle: #EFF6FF;
+      --success: #10B981;
+      --success-bg: #ECFDF5;
+      --success-border: #A7F3D0;
+      --warning: #D97706;
+      --warning-bg: #FFFBEB;
+      --warning-border: #FDE68A;
+      --danger: #DC2626;
+      --danger-bg: #FEF2F2;
+      --danger-border: #FECACA;
+      --radius-lg: 8px;
+      --radius-md: 6px;
+      --radius-sm: 4px;
+      --shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      padding: 16px 24px;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--primary);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+      color: white;
+    }
+
+    .brand-text h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .brand-text p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid var(--success-border);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--success);
+    }
+
+    .btn {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--surface-border);
+      padding: 8px 14px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: var(--shadow);
+    }
+
+    .btn:hover {
+      background: var(--surface-hover);
+      border-color: #CBD5E1;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      border-color: var(--primary-hover);
+    }
+
+    .btn-danger {
+      background: var(--surface);
+      color: var(--danger);
+      border-color: var(--surface-border);
+    }
+
+    .btn-danger:hover {
+      background: var(--danger-bg);
+      border-color: var(--danger-border);
+    }
+
+    .btn-sm {
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+
+    /* Stats Overview Grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .metric-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .metric-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .metric-value {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .metric-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .section-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--text);
+    }
+
+    /* Key Management */
+    .key-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      margin-bottom: 8px;
+    }
+
+    .key-details {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .key-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .key-value-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .key-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .badge-healthy {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid var(--success-border);
+    }
+
+    .badge-cooldown {
+      background: var(--warning-bg);
+      color: var(--warning);
+      border: 1px solid var(--warning-border);
+    }
+
+    .add-key-box {
+      background: var(--primary-subtle);
+      border: 1px dashed var(--primary);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .input-field {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-family: 'JetBrains Mono', monospace;
+      outline: none;
+    }
+
+    .input-field:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    /* Latency Chart Container */
+    .chart-container {
+      height: 200px;
+      width: 100%;
+      position: relative;
+    }
+
+    /* Tables & Pagination */
+    .table-container {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--surface-border);
+      font-size: 12px;
+      background: var(--bg);
+    }
+
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--surface-border);
+      color: var(--text);
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .code-font {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+
+    .search-input {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      outline: none;
+      width: 220px;
+    }
+
+    .search-input:focus {
+      border-color: var(--primary);
+    }
+
+    .pagination-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 12px;
+      border-top: 1px solid var(--surface-border);
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .pagination-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .select-input {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      color: var(--text);
+      padding: 4px 8px;
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      outline: none;
+    }
+
+    .log-status-200 { color: var(--success); font-weight: 600; }
+    .log-status-400 { color: var(--warning); font-weight: 600; }
+    .log-status-429 { color: var(--warning); font-weight: 600; }
+    .log-status-500 { color: var(--danger); font-weight: 600; }
+
+    .empty-state {
+      text-align: center;
+      padding: 32px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 1024px) {
+      .two-col { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-icon">O</div>
+        <div class="brand-text">
+          <h1>OpenRouter Claude Gateway</h1>
+          <p>Claude Code × OpenRouter Gateway Console</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="status-badge">
+          <span class="status-dot"></span>
+          <span>GATEWAY ONLINE</span>
+        </div>
+        <button class="btn" onclick="fetchStats()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          Refresh
+        </button>
+      </div>
+    </header>
+
+    <!-- Metrics Overview -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-title">Uptime</div>
+        <div class="metric-value" id="val-uptime">0s</div>
+        <div class="metric-sub" id="val-port">Port 8080</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">OpenRouter Key Pool</div>
+        <div class="metric-value" id="val-keys">0 / 0</div>
+        <div class="metric-sub" id="val-keys-sub">Healthy / Total</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Available Free Models</div>
+        <div class="metric-value" id="val-models">0</div>
+        <div class="metric-sub" id="val-default-model">Default: auto</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Total Requests</div>
+        <div class="metric-value" id="val-requests">0</div>
+        <div class="metric-sub" id="val-avg-latency">Avg Latency: 0ms</div>
+      </div>
+    </div>
+
+    <!-- Key Pool Management Section -->
+    <div class="section-card">
+      <div class="section-header">
+        <div>
+          <div class="section-title">OpenRouter API Key Management</div>
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Manage keys stored in settings.json. Rotates healthy keys automatically.</p>
+        </div>
+        <button class="btn btn-primary" onclick="toggleAddForm()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Add API Key
+        </button>
+      </div>
+
+      <!-- Add Key Form -->
+      <div id="add-key-form" class="add-key-box" style="display: none;">
+        <input type="text" id="new-key-input" class="input-field" placeholder="sk-or-v1-..." autocomplete="off">
+        <button class="btn btn-primary" onclick="submitAddKey()">Save Key</button>
+        <button class="btn" onclick="toggleAddForm()">Cancel</button>
+      </div>
+
+      <!-- Key List -->
+      <div id="key-list-container">
+        <div class="empty-state">Loading keys...</div>
+      </div>
+    </div>
+
+    <!-- Main Two Column Grid -->
+    <div class="two-col">
+      <!-- Left Column: Latency Chart & Live Logs -->
+      <div style="display: flex; flex-direction: column; gap: 24px;">
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">Request Latency Timeline</div>
+          </div>
+          <div class="chart-container">
+            <canvas id="latency-chart-canvas"></canvas>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">Live Request Logs</div>
+            <input type="text" id="log-search" class="search-input" placeholder="Filter logs..." oninput="onSearchChange()">
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>ID</th>
+                  <th>Model</th>
+                  <th>Key</th>
+                  <th>Status</th>
+                  <th>Latency</th>
+                </tr>
+              </thead>
+              <tbody id="logs-tbody">
+                <tr><td colspan="6" class="empty-state">No requests recorded yet. Make a request via Claude Code!</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination Footer -->
+          <div class="pagination-bar">
+            <div id="pagination-info">Showing 0 of 0 logs</div>
+            <div class="pagination-controls">
+              <label for="page-size-select" style="font-size: 12px;">Per page:</label>
+              <select id="page-size-select" class="select-input" onchange="onPageSizeChange(this.value)">
+                <option value="10" selected>10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+              <button id="btn-prev-page" class="btn btn-sm" onclick="changePage(-1)">Previous</button>
+              <span id="page-num-display" style="font-weight: 600; font-size: 12px; padding: 0 4px;">Page 1</span>
+              <button id="btn-next-page" class="btn btn-sm" onclick="changePage(1)">Next</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Model Stats -->
+      <div style="display: flex; flex-direction: column; gap: 24px;">
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">Model Performance Stats</div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Reqs</th>
+                  <th>Success</th>
+                  <th>Avg (ms)</th>
+                </tr>
+              </thead>
+              <tbody id="models-tbody">
+                <tr><td colspan="4" class="empty-state">No model usage data yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentData = null;
+    let keyList = [];
+    let revealedKeys = new Set();
+    let chartInstance = null;
+
+    // Pagination State
+    let currentPage = 1;
+    let pageSize = 10;
+
+    function formatUptime(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      if (h > 0) return `${h}h ${m}m ${s}s`;
+      if (m > 0) return `${m}m ${s}s`;
+      return `${s}s`;
+    }
+
+    function maskKey(key) {
+      if (key.length <= 12) return key;
+      return key.slice(0, 8) + '••••••••' + key.slice(-4);
+    }
+
+    function toggleAddForm() {
+      const form = document.getElementById('add-key-form');
+      form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+      if (form.style.display === 'flex') {
+        document.getElementById('new-key-input').focus();
+      }
+    }
+
+    function toggleRevealKey(key) {
+      if (revealedKeys.has(key)) {
+        revealedKeys.delete(key);
+      } else {
+        revealedKeys.add(key);
+      }
+      renderKeys();
+    }
+
+    async function fetchKeys() {
+      try {
+        const res = await fetch('/api/keys');
+        if (res.ok) {
+          const data = await res.json();
+          keyList = data.keys || [];
+          renderKeys();
+        }
+      } catch (e) {
+        console.error('Failed to fetch keys:', e);
+      }
+    }
+
+    async function submitAddKey() {
+      const input = document.getElementById('new-key-input');
+      const val = input.value.trim();
+      if (!val) return alert('Please enter an API Key.');
+      try {
+        const res = await fetch('/api/keys', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ key: val }),
+        });
+        if (res.ok) {
+          input.value = '';
+          toggleAddForm();
+          await fetchKeys();
+          await fetchStats();
+        } else {
+          const err = await res.json();
+          alert(err.error?.message || 'Failed to add key');
+        }
+      } catch (e) {
+        alert('Error adding key: ' + e.message);
+      }
+    }
+
+    async function deleteKey(key) {
+      if (!confirm(`Are you sure you want to remove ${maskKey(key)}?`)) return;
+      try {
+        const res = await fetch('/api/keys', {
+          method: 'DELETE',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ key }),
+        });
+        if (res.ok) {
+          await fetchKeys();
+          await fetchStats();
+        } else {
+          const err = await res.json();
+          alert(err.error?.message || 'Failed to delete key');
+        }
+      } catch (e) {
+        alert('Error deleting key: ' + e.message);
+      }
+    }
+
+    function renderKeys() {
+      const container = document.getElementById('key-list-container');
+      if (!keyList || keyList.length === 0) {
+        container.innerHTML = '<div class="empty-state">No API keys configured in settings.json. Add one above!</div>';
+        return;
+      }
+
+      container.innerHTML = keyList.map(k => {
+        const isRevealed = revealedKeys.has(k.key);
+        const displayVal = isRevealed ? k.key : maskKey(k.key);
+        const score = k.predictiveScore ?? 100;
+        let scoreClass = 'badge-healthy';
+        if (score < 30) scoreClass = 'badge-cooldown';
+        else if (score < 80) scoreClass = 'badge-cooldown';
+
+        const tierText = typeof k.isFreeTier === 'boolean' 
+          ? (k.isFreeTier ? 'Free Tier (50/day)' : 'Paid Tier (1k/day)')
+          : null;
+        
+        const creditsText = typeof k.limitRemaining === 'number' 
+          ? (k.limitRemaining <= 0 ? '402 EXHAUSTED' : `$${k.limitRemaining.toFixed(2)} left`)
+          : (k.limitRemaining === null ? 'Unlimited Credits' : null);
+
+        const hasRateLimit = typeof k.rateLimitRemaining === 'number' && typeof k.rateLimitLimit === 'number';
+        const rlRemaining = hasRateLimit ? k.rateLimitRemaining : null;
+        const rlLimit = hasRateLimit ? k.rateLimitLimit : null;
+        const rlPercent = hasRateLimit && rlLimit > 0 ? Math.round((rlRemaining / rlLimit) * 100) : 100;
+
+        return `
+          <div class="key-row">
+            <div class="key-details" style="flex: 1;">
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span class="key-label">${k.label}</span>
+                <span class="badge ${scoreClass}">Score: ${score}%</span>
+                ${tierText ? `<span class="badge" style="background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0;">${tierText}</span>` : ''}
+                ${creditsText ? `<span class="badge" style="background: ${k.limitRemaining === 0 ? 'var(--danger-bg)' : 'var(--primary-subtle)'}; color: ${k.limitRemaining === 0 ? 'var(--danger)' : 'var(--primary)'}; border: 1px solid ${k.limitRemaining === 0 ? 'var(--danger-border)' : '#BFDBFE'};">${creditsText}</span>` : ''}
+              </div>
+              <div class="key-value-container" style="margin-top: 4px;">
+                <span>${displayVal}</span>
+                <button class="btn btn-sm" onclick="toggleRevealKey('${k.key}')">
+                  ${isRevealed ? 'Hide' : 'Reveal'}
+                </button>
+              </div>
+              ${hasRateLimit ? `
+                <div style="margin-top: 6px; width: 220px;">
+                  <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-bottom: 2px;">
+                    <span>Rate Limit</span>
+                    <span>${rlRemaining} / ${rlLimit} reqs ${k.rateLimitResetSecondsLeft ? `(${k.rateLimitResetSecondsLeft}s)` : ''}</span>
+                  </div>
+                  <div style="width: 100%; height: 4px; background: #E2E8F0; border-radius: 2px; overflow: hidden;">
+                    <div style="width: ${rlPercent}%; height: 100%; background: ${rlPercent < 20 ? 'var(--danger)' : 'var(--primary)'};"></div>
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+            <div class="key-actions">
+              <span class="code-font" style="font-size: 12px; color: var(--text-muted);">${k.successes} succ / ${k.failures} fail</span>
+              ${k.healthy 
+                ? '<span class="badge badge-healthy">READY</span>' 
+                : `<span class="badge badge-cooldown">COOLDOWN (${k.cooldownSecondsLeft}s)</span>`}
+              <button class="btn btn-danger btn-sm" onclick="deleteKey('${k.key}')">Delete</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function fetchStats() {
+      try {
+        const res = await fetch('/api/stats');
+        if (!res.ok) return;
+        currentData = await res.json();
+        renderDashboard(currentData);
+      } catch (e) {
+        console.error('Failed to fetch stats:', e);
+      }
+    }
+
+    function renderDashboard(data) {
+      document.getElementById('val-uptime').textContent = formatUptime(data.health.uptimeSeconds);
+      document.getElementById('val-port').textContent = `Port ${data.health.port}`;
+      
+      const healthyKeys = data.health.keys.filter(k => k.healthy).length;
+      document.getElementById('val-keys').textContent = `${healthyKeys} / ${data.health.keys.length}`;
+      document.getElementById('val-keys-sub').textContent = healthyKeys === data.health.keys.length ? 'All Healthy ✓' : `${data.health.keys.length - healthyKeys} in cooldown`;
+
+      document.getElementById('val-models').textContent = data.health.freeModels;
+      document.getElementById('val-default-model').textContent = `Default: ${data.health.defaultModel || 'auto'}`;
+
+      document.getElementById('val-requests').textContent = data.logs.length;
+      
+      const successfulLogs = data.logs.filter(l => l.status >= 200 && l.status < 300);
+      const avgLat = successfulLogs.length > 0 
+        ? Math.round(successfulLogs.reduce((acc, l) => acc + l.latencyMs, 0) / successfulLogs.length) 
+        : 0;
+      document.getElementById('val-avg-latency').textContent = `Avg Latency: ${avgLat}ms`;
+
+      renderCloudflareChart(data.latencyHistory || []);
+      renderLogs();
+      renderModelStats(data.modelStats || {});
+    }
+
+    function renderCloudflareChart(history) {
+      const ctx = document.getElementById('latency-chart-canvas').getContext('2d');
+      if (!history || history.length === 0) return;
+
+      const labels = history.map(h => h.timestamp);
+      const dataPoints = history.map(h => h.latencyMs);
+      const models = history.map(h => h.model);
+      const statuses = history.map(h => h.status);
+
+      if (chartInstance) {
+        chartInstance.data.labels = labels;
+        chartInstance.data.datasets[0].data = dataPoints;
+        chartInstance.update('none');
+        return;
+      }
+
+      const gradient = ctx.createLinearGradient(0, 0, 0, 180);
+      gradient.addColorStop(0, 'rgba(37, 99, 235, 0.25)');
+      gradient.addColorStop(1, 'rgba(37, 99, 235, 0.0)');
+
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Latency (ms)',
+            data: dataPoints,
+            borderColor: '#2563EB',
+            borderWidth: 2,
+            backgroundColor: gradient,
+            fill: true,
+            tension: 0.35,
+            pointBackgroundColor: '#2563EB',
+            pointRadius: 3,
+            pointHoverRadius: 5,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: function(ctx) {
+                  const idx = ctx[0].dataIndex;
+                  return `Req ${idx + 1} @ ${labels[idx]}`;
+                },
+                label: function(ctx) {
+                  const idx = ctx.dataIndex;
+                  return `Latency: ${ctx.parsed.y}ms | Model: ${models[idx]} (${statuses[idx]})`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { font: { family: 'Plus Jakarta Sans', size: 11 }, color: '#64748B' }
+            },
+            y: {
+              beginAtZero: true,
+              grid: { color: '#F1F5F9' },
+              ticks: { font: { family: 'Plus Jakarta Sans', size: 11 }, color: '#64748B' }
+            }
+          }
+        }
+      });
+    }
+
+    function onSearchChange() {
+      currentPage = 1;
+      renderLogs();
+    }
+
+    function onPageSizeChange(newSize) {
+      pageSize = parseInt(newSize, 10);
+      currentPage = 1;
+      renderLogs();
+    }
+
+    function changePage(delta) {
+      currentPage += delta;
+      renderLogs();
+    }
+
+    function renderLogs() {
+      if (!currentData || !currentData.logs) return;
+      const query = (document.getElementById('log-search').value || '').toLowerCase();
+      const tbody = document.getElementById('logs-tbody');
+
+      const filtered = currentData.logs.filter(l => 
+        l.resolvedModel.toLowerCase().includes(query) ||
+        l.keyLabel.toLowerCase().includes(query) ||
+        String(l.status).includes(query) ||
+        String(l.id).includes(query)
+      );
+
+      const totalLogs = filtered.length;
+      const totalPages = Math.ceil(totalLogs / pageSize) || 1;
+      
+      if (currentPage < 1) currentPage = 1;
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = Math.min(startIndex + pageSize, totalLogs);
+      const pageLogs = filtered.slice(startIndex, endIndex);
+
+      // Update Pagination UI controls
+      document.getElementById('pagination-info').textContent = totalLogs > 0 
+        ? `Showing ${startIndex + 1}-${endIndex} of ${totalLogs} logs` 
+        : 'Showing 0 of 0 logs';
+      
+      document.getElementById('page-num-display').textContent = `Page ${currentPage} of ${totalPages}`;
+      document.getElementById('btn-prev-page').disabled = currentPage <= 1;
+      document.getElementById('btn-next-page').disabled = currentPage >= totalPages;
+
+      if (pageLogs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No matching request logs found.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = pageLogs.map(l => `
+        <tr>
+          <td class="code-font">${l.timestamp.split('T')[1]?.slice(0, 8) || l.timestamp}</td>
+          <td class="code-font">#${l.id}</td>
+          <td class="code-font" style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${l.resolvedModel}</td>
+          <td class="code-font">${l.keyLabel}</td>
+          <td><span class="log-status-${Math.floor(l.status / 100) * 100}">${l.status}</span></td>
+          <td class="code-font">${l.latencyMs}ms</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderModelStats(modelStats) {
+      const tbody = document.getElementById('models-tbody');
+      const entries = Object.entries(modelStats);
+      
+      if (entries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-state">No model usage data yet.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = entries.map(([model, s]) => {
+        const rate = s.requests > 0 ? Math.round((s.successes / s.requests) * 100) : 0;
+        return `
+          <tr>
+            <td class="code-font" style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${model}">${model}</td>
+            <td class="code-font">${s.requests}</td>
+            <td class="code-font">${rate}%</td>
+            <td class="code-font">${s.avgLatencyMs}ms</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Initial load + poll
+    fetchKeys();
+    fetchStats();
+    setInterval(() => {
+      fetchKeys();
+      fetchStats();
+    }, 1000);
+  </script>
+</body>
+</html>

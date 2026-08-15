@@ -1,0 +1,30 @@
+{
+  "name": "openrouter-claude-router",
+  "version": "1.0.0",
+  "description": "Zero-latency intelligent OpenRouter failover gateway for Claude Code & LLM tools",
+  "type": "module",
+  "main": "index.ts",
+  "module": "index.ts",
+  "bin": {
+    "openrouter-claude-router": "index.ts",
+    "claude-router": "index.ts",
+    "openclaw": "index.ts"
+  },
+  "scripts": {
+    "start": "bun index.ts",
+    "dev": "bun --watch index.ts",
+    "test": "bun test"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "openrouter",
+    "ai",
+    "llm",
+    "router",
+    "gateway",
+    "failover",
+    "rate-limit"
+  ],
+  "license": "MIT"
+}

@@ -1,0 +1,388 @@
+#!/usr/bin/env bun
+/**
+ * OpenRouter Claude Gateway — Zero-latency failover gateway for Claude Code & OpenRouter.
+ *
+ *   npx openrouter-claude-router       # start — all free OpenRouter models available
+ *   bun run index.ts --model <id>      # force one free model as default override
+ *   bun run index.ts --select-model    # open interactive picker
+ *
+ * While running, type `help` in terminal for live commands (models, status…).
+ */
+import { createInterface } from "node:readline";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import {
+  ensureConfigFiles,
+  loadSystem,
+  saveSystem,
+  PROJECT_ROOT,
+  SETTINGS_PATH,
+  SYSTEM_PATH,
+  type SystemConfig,
+} from "./src/config";
+import { resolveClaudeSettingsPath, writeClaudeSettings } from "./src/claude";
+import {
+  fetchModelListWithKeys,
+  isFreeModel,
+  pickModelInteractive,
+  pickerOrder,
+  resolveFreeModel,
+  type OpenRouterModel,
+} from "./src/models";
+import { KeyPool } from "./src/keys";
+import { createRouterServer } from "./src/server";
+
+const ASCII_BANNER_LINES = [
+  "  \x1b[36m   ___  ___ ___ _  _ ___ ___  _   _ _____ ___ ___   \x1b[0m",
+  "  \x1b[36m  / _ \\| _ \\ __| \\| | _ \\ _ \\| | | |_   _| __| _ \\  \x1b[0m",
+  "  \x1b[36m | (_) |  _/ _|| .` |   /   /| |_| | | | | _||   /  \x1b[0m",
+  "  \x1b[36m  \\___/|_| |___|_|\\_|_|_\\_|_\\ \\___/  |_| |___|_|_\\  \x1b[0m",
+  "  \x1b[35m   ___ _    _   _  ___  ___  ___    ___  _ _____ _____ _  _  ___   \x1b[0m",
+  "  \x1b[35m  / __| |  /_\\ | ||   \\| __|/ __|  / _ \\/ |  _  |_   _| || |/ _ \\  \x1b[0m",
+  "  \x1b[35m | (__| |_/ _ \\| || |) | _| | (_ | | (_) | | |_| | | | | __ | (_) | \x1b[0m",
+  "  \x1b[35m  \\___|___/_/ \\_\\_||___/|___|\\___|  \\___/|_|_____| |_| |_||_|\\___/  \x1b[0m",
+  "  \x1b[34m==================================================================\x1b[0m",
+  "  \x1b[1m  OpenRouter Claude Gateway — Failover & Rate Limit Router \x1b[0m",
+  "  \x1b[34m==================================================================\x1b[0m",
+];
+
+async function animateBanner(): Promise<void> {
+  for (const line of ASCII_BANNER_LINES) {
+    console.log(line);
+    await new Promise((r) => setTimeout(r, 15));
+  }
+}
+
+interface CliArgs {
+  model?: string;
+  selectModel: boolean;
+  port?: number;
+  modelsFile?: string;
+  help: boolean;
+}
+
+function parseArgs(argv: string[]): CliArgs {
+  const args: CliArgs = { selectModel: false, help: false };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    switch (a) {
+      case "--help":
+      case "-h":
+        args.help = true;
+        break;
+      case "--select-model":
+        args.selectModel = true;
+        break;
+      case "--model":
+      case "-m":
+        args.model = argv[++i];
+        break;
+      case "--port":
+      case "-p":
+        args.port = Number(argv[++i]);
+        break;
+      case "--models-file":
+        args.modelsFile = argv[++i];
+        break;
+      default:
+        break;
+    }
+  }
+  return args;
+}
+
+function printUsage(): void {
+  console.log(`
+Kickbacks Router — Claude Code × OpenRouter failover gateway
+
+All OpenRouter free models are available — no selection needed. Every free
+model shows up in Claude Code's /model picker.
+
+Usage:
+  bun run index.ts                 start the router
+  bun run index.ts --model <id>    force one free model as the default override
+  bun run index.ts --select-model  open the picker to set that override
+  bun run index.ts --port <n>      listen on a different port (default 8080)
+  bun run index.ts --models-file <path>  load a model list from a JSON file (offline/testing)
+
+Files:
+  settings.json   OpenRouter API keys (edit these — one per account)
+  system.json     port, failover tuning (defaultModel is optional)
+
+While running, type: models · status · keys · help · quit
+`);
+}
+
+function loadModelsFile(path: string): OpenRouterModel[] {
+  const raw = JSON.parse(readFileSync(resolve(PROJECT_ROOT, path), "utf8")) as unknown;
+  const arr = Array.isArray(raw) ? raw : (raw as { data?: unknown[] }).data ?? [];
+  return arr
+    .map((m): OpenRouterModel | null => {
+      if (typeof m === "string") return { id: m };
+      const o = m as Record<string, unknown>;
+      return typeof o.id === "string" ? { id: o.id, name: typeof o.name === "string" ? o.name : undefined } : null;
+    })
+    .filter((m): m is OpenRouterModel => m !== null);
+}
+
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv.slice(2));
+  if (args.help) {
+    printUsage();
+    return;
+  }
+
+  await animateBanner();
+
+  // 1) Credentials ----------------------------------------------------------
+  const settings = ensureConfigFiles();
+  const keys = settings.openrouterKeys.filter((k) => k.trim() && !k.includes("REPLACE"));
+  if (keys.length === 0) {
+    console.error("\n  ✗ No OpenRouter keys configured.");
+    console.error('    Open settings.json and add your keys under "openrouterKeys" — one per account.');
+    console.error("    Example: [\"sk-or-v1-xxx\", \"sk-or-v1-yyy\"]\n");
+    process.exit(1);
+  }
+
+  // 2) System config --------------------------------------------------------
+  const sys: SystemConfig = loadSystem();
+  if (args.port && Number.isInteger(args.port) && args.port > 0) sys.port = args.port;
+  console.log(`\n  Accounts : ${keys.length} OpenRouter key${keys.length === 1 ? "" : "s"} loaded from settings.json`);
+
+  // 3) Model catalog — free models only --------------------------------------
+  let freeModels: OpenRouterModel[] = [];
+  let freeIds: string[] = [];
+  try {
+    const catalog = args.modelsFile ? loadModelsFile(args.modelsFile) : await fetchModelListWithKeys(keys, sys.openrouterBaseUrl);
+    freeModels = pickerOrder(catalog.filter(isFreeModel));
+    freeIds = freeModels.map((m) => m.id);
+  } catch (err) {
+    console.error(`\n  ✗ Could not fetch the model list from OpenRouter: ${err instanceof Error ? err.message : err}`);
+    console.error("    Check that your keys are valid and you have an internet connection.\n");
+    process.exit(1);
+  }
+  if (freeIds.length === 0) {
+    console.error("\n  ✗ No free models found in the catalog. The router only routes free models.\n");
+    process.exit(1);
+  }
+  console.log(`  Free models : ${freeIds.length} (all available in Claude Code's /model picker)`);
+
+  // 4) Optional default override ---------------------------------------------
+  const state: { model: string | null } = { model: null };
+
+  const pick = async (reason: string): Promise<string | null> => {
+    const chosen = await pickModelInteractive(freeModels, { title: `  ${reason}` });
+    if (!chosen) return null;
+    state.model = chosen.id;
+    sys.defaultModel = chosen.id;
+    saveSystem(sys);
+    console.log(`  ✓ Saved to system.json: ${chosen.id}`);
+    return chosen.id;
+  };
+
+  if (args.model) {
+    if (!freeIds.includes(args.model)) {
+      console.error(`\n  ✗ "${args.model}" is not a free model.\n    Run \`bun run index.ts --select-model\` to see the free list.\n`);
+      process.exit(1);
+    }
+    state.model = args.model;
+    sys.defaultModel = args.model;
+    saveSystem(sys);
+    console.log(`  Default    : ${args.model} (forced override via --model)`);
+  } else if (args.selectModel) {
+    await pick("Pick a default model override (optional — other free models stay available):");
+  } else if (sys.defaultModel) {
+    if (freeIds.includes(sys.defaultModel)) {
+      state.model = sys.defaultModel;
+      console.log(`  Default    : ${sys.defaultModel} (override from system.json)`);
+    } else {
+      console.log(`  ⚠ Saved default "${sys.defaultModel}" is not a free model — ignoring it.`);
+      sys.defaultModel = null;
+      saveSystem(sys);
+    }
+  } else {
+    console.log("  Default    : auto — every free model is selectable inside Claude Code (/model)");
+  }
+
+  // 5) Start the gateway ----------------------------------------------------
+  const keyPool = new KeyPool(keys, {
+    roundRobin: sys.roundRobin,
+    cooldownBaseMs: sys.failover.cooldownBaseSeconds * 1000,
+    cooldownMaxMs: sys.failover.cooldownMaxSeconds * 1000,
+  });
+
+  const router = createRouterServer({
+    port: sys.port,
+    resolveModel: (requested) => resolveFreeModel(requested, freeIds, state.model),
+    getDefaultModel: () => state.model,
+    keyPool,
+    getModels: () => freeModels,
+    openrouterBaseUrl: sys.openrouterBaseUrl,
+    maxRetries: sys.failover.maxRetries,
+    roundRobin: sys.roundRobin,
+  });
+  await router.ready;
+
+  const actualPort = router.server.port;
+  console.log(`\n  ✓ Gateway listening on http://127.0.0.1:${actualPort}`);
+  console.log(`  ✓ Dashboard UI available on http://127.0.0.1:${actualPort}/dashboard`);
+
+  // 5b) Automatically point Claude Code at the router -------------------------
+  if (sys.autoConfigureClaude) {
+    const target = resolveClaudeSettingsPath(sys.claudeSettingsPath, PROJECT_ROOT);
+    // Case-insensitive on Windows, where paths compare ignoring case.
+    const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+    if (samePath(target, SETTINGS_PATH) || samePath(target, SYSTEM_PATH)) {
+      console.log(
+        `  ⚠ Refusing to write Claude settings to ${target} — that's a router config file.\n    Set "claudeSettingsPath" to a real Claude Code settings file.`,
+      );
+    } else {
+      try {
+        const result = writeClaudeSettings(target, actualPort);
+        if (result.changed) {
+          console.log(`  ✓ Claude Code settings updated: ${target}`);
+          for (const change of result.changes) console.log(`      ${change}`);
+        } else {
+          console.log(`  ✓ Claude Code settings already point at the router (${target})`);
+        }
+      } catch (err) {
+        console.log(`  ⚠ Could not update Claude Code settings (${target}): ${err instanceof Error ? err.message : err}`);
+      }
+    }
+  } else {
+    console.log(
+      `  (auto-config of Claude Code is off — set "autoConfigureClaude": true in system.json to enable)`,
+    );
+  }
+
+  console.log(`
+  Then run: claude
+  In Claude Code, open /model — every free model is listed there. Requests are
+  routed across your OpenRouter accounts with automatic failover.
+
+  Type "help" here for live commands (models · status · keys · quit).`);
+
+  // 6) Live terminal REPL ---------------------------------------------------
+  // ONE readline interface owns stdin. The picker (opened by the `model`
+  // command) borrows its lines through a mode flag, so two interfaces never
+  // fight over the same stream.
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  let pickerActive = false;
+  const lineQueue: string[] = [];
+  let lineWaiter: ((v: string | undefined) => void) | null = null;
+
+  const nextLine = (): Promise<string | undefined> =>
+    new Promise((resolve) => {
+      if (lineQueue.length > 0) resolve(lineQueue.shift());
+      else lineWaiter = resolve;
+    });
+
+  const runCommand = (raw: string) => void handleCommand(raw).finally(() => process.stdout.write("router> "));
+
+  rl.on("line", (line) => {
+    if (pickerActive) {
+      if (lineWaiter) {
+        const w = lineWaiter;
+        lineWaiter = null;
+        w(line);
+      } else {
+        lineQueue.push(line);
+      }
+      return;
+    }
+    runCommand(line);
+  });
+  rl.on("close", () => {
+    if (lineWaiter) {
+      const w = lineWaiter;
+      lineWaiter = null;
+      w(undefined);
+    }
+  });
+
+  async function handleCommand(raw: string) {
+    const cmd = raw.trim().toLowerCase();
+    switch (cmd) {
+      case "help":
+      case "?":
+        console.log(`
+  models   list the available free models
+  model    set/clear the default model override (pick from the free list)
+  status   show free-model count, override, port and per-key health
+  keys     list configured keys (masked)
+  quit     stop the router`);
+        break;
+      case "models": {
+        console.log(`\n  ${freeIds.length} free models available:`);
+        for (const m of freeModels.slice(0, 25)) console.log(`    ${m.id}`);
+        if (freeIds.length > 25) console.log(`    … and ${freeIds.length - 25} more (full list in Claude Code's /model picker)`);
+        break;
+      }
+      case "status": {
+        console.log(`\n  Default override : ${state.model ?? "(none — auto, pick in Claude Code /model)"}`);
+        console.log(`  Free models      : ${freeIds.length}`);
+        console.log(`  Port             : ${actualPort}`);
+        for (const k of keyPool.list()) {
+          const cool = Math.max(0, Math.ceil((k.cooldownUntil - Date.now()) / 1000));
+          console.log(`  ${k.label.padEnd(22)} healthy=${k.consecutiveFailures === 0 || cool === 0} · ok=${k.successes} · fail=${k.failures}${cool > 0 ? ` · cooldown ${cool}s` : ""}`);
+        }
+        break;
+      }
+      case "keys":
+        for (const k of keyPool.list()) console.log(`  ${k.label}  ${k.key.slice(0, 12)}…`);
+        break;
+      case "model": {
+        pickerActive = true;
+        try {
+          try {
+            const catalog = await fetchModelListWithKeys(keys, sys.openrouterBaseUrl);
+            const fresh = pickerOrder(catalog.filter(isFreeModel));
+            if (fresh.length > 0) {
+              freeModels = fresh;
+              freeIds = fresh.map((m) => m.id);
+            }
+          } catch {
+            console.log("  ⚠ Could not refresh the catalog — reusing the cached list.");
+          }
+          const chosen = await pickModelInteractive(freeModels, { title: "  Pick a default model override (or q to clear it):", nextLine });
+          if (chosen) {
+            state.model = chosen.id;
+            sys.defaultModel = chosen.id;
+            saveSystem(sys);
+            console.log(`  ✓ Default override is now ${chosen.id}`);
+          } else if (state.model || sys.defaultModel) {
+            // Cancelled while an override was set — treat as "clear the override".
+            state.model = null;
+            sys.defaultModel = null;
+            saveSystem(sys);
+            console.log("  ✓ Default override cleared — all free models available again.");
+          }
+        } finally {
+          pickerActive = false;
+          // Flush lines typed ahead while the picker was open back into the REPL.
+          for (const buffered of lineQueue.splice(0)) runCommand(buffered);
+        }
+        break;
+      }
+      case "quit":
+      case "exit":
+        console.log("  Bye.");
+        process.exit(0);
+        break;
+      default:
+        if (raw.trim()) console.log('  Unknown command — type "help".');
+        break;
+    }
+  }
+
+  process.stdout.write("router> ");
+  process.on("SIGINT", () => {
+    console.log("\n  Bye.");
+    process.exit(0);
+  });
+}
+
+main().catch((err) => {
+  console.error("\n  ✗ Fatal error:", err instanceof Error ? err.message : err);
+  process.exit(1);
+});
