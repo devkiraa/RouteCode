@@ -47,6 +47,8 @@ export interface SystemConfig {
   /** Claude Code settings file to update (null = ~/.claude/settings.json). */
   claudeSettingsPath: string | null;
   failover: FailoverConfig;
+  /** Filtered set of model IDs enabled for Claude Code's /model picker (null = all models enabled). */
+  enabledModels?: string[] | null;
 }
 
 export interface Settings {
@@ -65,6 +67,7 @@ export const DEFAULT_SYSTEM: SystemConfig = {
     cooldownBaseSeconds: 10,
     cooldownMaxSeconds: 300,
   },
+  enabledModels: null,
 };
 
 /** Read settings.json; never throws — missing/invalid file yields an empty key list. */
@@ -101,6 +104,11 @@ export function loadSystem(): SystemConfig {
     if (typeof raw.autoConfigureClaude === "boolean") cfg.autoConfigureClaude = raw.autoConfigureClaude;
     if (typeof raw.claudeSettingsPath === "string" && raw.claudeSettingsPath.trim()) {
       cfg.claudeSettingsPath = raw.claudeSettingsPath;
+    }
+    if (Array.isArray(raw.enabledModels)) {
+      cfg.enabledModels = raw.enabledModels;
+    } else if (raw.enabledModels === null) {
+      cfg.enabledModels = null;
     }
     const f = raw.failover;
     if (f && typeof f === "object") {

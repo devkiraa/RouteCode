@@ -305,7 +305,12 @@ export function createRouterServer(deps: RouterDeps) {
   }
 
   function handleModels(): Response {
-    const models = getAllAvailableModels();
+    let models = getAllAvailableModels();
+    const sys = loadSystem();
+    if (Array.isArray(sys.enabledModels)) {
+      const allowed = new Set(sys.enabledModels);
+      models = models.filter((m) => allowed.has(m.id));
+    }
     // Claude Code's picker only keeps ids matching /(claude|anthropic)/i, so
     // non-Claude models are advertised under a gateway alias
     // (anthropic/claude-route-<base64url>) that the router decodes on requests.
@@ -473,6 +478,7 @@ export function createRouterServer(deps: RouterDeps) {
       roundRobin: sys.roundRobin,
       maxRetries: sys.failover.maxRetries,
       port: sys.port,
+      enabledModels: sys.enabledModels ?? null,
       models: getAllAvailableModels().map((m) => ({
         id: m.id,
         name: m.name ?? m.id,
@@ -484,16 +490,21 @@ export function createRouterServer(deps: RouterDeps) {
 
   async function handleUpdateConfig(req: Request): Promise<Response> {
     try {
-      const body = (await req.json()) as { defaultModel?: string | null; roundRobin?: boolean };
+      const body = (await req.json()) as {
+        defaultModel?: string | null;
+        roundRobin?: boolean;
+        enabledModels?: string[] | null;
+      };
       const sys = loadSystem();
       if ("defaultModel" in body) {
         sys.defaultModel = body.defaultModel ? body.defaultModel.trim() || null : null;
-        log(`Default model override updated to: ${sys.defaultModel ?? "auto"}`);
       }
       if (typeof body.roundRobin === "boolean") {
         sys.roundRobin = body.roundRobin;
         deps.roundRobin = body.roundRobin;
-        log(`Routing strategy updated to: ${sys.roundRobin ? "Round-Robin" : "Predictive Score"}`);
+      }
+      if ("enabledModels" in body) {
+        sys.enabledModels = Array.isArray(body.enabledModels) ? body.enabledModels : null;
       }
       saveSystem(sys);
       return handleGetConfig();

@@ -182,12 +182,26 @@ describe("gateway endpoints", () => {
     const resPost = await fetch(`${routerUrl}/api/config`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ defaultModel: "test/model-two:free", roundRobin: true }),
+      body: JSON.stringify({ defaultModel: "test/model-two:free", roundRobin: true, enabledModels: ["test/model-one:free"] }),
     });
     expect(resPost.status).toBe(200);
     const postBody = await resPost.json();
     expect(postBody.defaultModel).toBe("test/model-two:free");
     expect(postBody.roundRobin).toBe(true);
+    expect(postBody.enabledModels).toEqual(["test/model-one:free"]);
+
+    // GET /v1/models now filters to only test/model-one:free
+    const resModels = await fetch(`${routerUrl}/v1/models`);
+    const modelsBody = await resModels.json();
+    expect(modelsBody.data.length).toBe(1);
+    expect(modelsBody.data[0].description).toBe("test/model-one:free");
+
+    // Reset enabledModels
+    await fetch(`${routerUrl}/api/config`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabledModels: null }),
+    });
   });
 
   test("key management API endpoints (GET, POST, DELETE /api/keys)", async () => {
