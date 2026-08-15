@@ -159,6 +159,23 @@ describe("gateway endpoints", () => {
     expect(body.modelStats).toBeDefined();
   });
 
+  test("GET and POST /api/config allows updating default model and strategy", async () => {
+    const resGet = await fetch(`${routerUrl}/api/config`);
+    expect(resGet.status).toBe(200);
+    const getBody = await resGet.json();
+    expect(getBody.models).toBeDefined();
+
+    const resPost = await fetch(`${routerUrl}/api/config`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ defaultModel: "test/model-two:free", roundRobin: true }),
+    });
+    expect(resPost.status).toBe(200);
+    const postBody = await resPost.json();
+    expect(postBody.defaultModel).toBe("test/model-two:free");
+    expect(postBody.roundRobin).toBe(true);
+  });
+
   test("key management API endpoints (GET, POST, DELETE /api/keys)", async () => {
     // GET initial
     const resGet = await fetch(`${routerUrl}/api/keys`);

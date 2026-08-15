@@ -13,7 +13,7 @@ import { fallbackModelCandidates, gatewayIdFor, realIdForGateway, type OpenRoute
 import { globalTelemetry } from "./telemetry";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { PROJECT_ROOT, loadSettings, saveSettings } from "./config";
+import { PROJECT_ROOT, loadSettings, saveSettings, loadSystem, saveSystem } from "./config";
 
 export interface RouterDeps {
   port: number;
@@ -409,6 +409,37 @@ export function createRouterServer(deps: RouterDeps) {
     }
   }
 
+  function handleGetConfig(): Response {
+    const sys = loadSystem();
+    return Response.json({
+      defaultModel: sys.defaultModel,
+      roundRobin: sys.roundRobin,
+      maxRetries: sys.failover.maxRetries,
+      port: sys.port,
+      models: deps.getModels().map((m) => ({ id: m.id, name: m.name ?? m.id })),
+    });
+  }
+
+  async function handleUpdateConfig(req: Request): Promise<Response> {
+    try {
+      const body = (await req.json()) as { defaultModel?: string | null; roundRobin?: boolean };
+      const sys = loadSystem();
+      if ("defaultModel" in body) {
+        sys.defaultModel = body.defaultModel ? body.defaultModel.trim() || null : null;
+        log(`Default model override updated to: ${sys.defaultModel ?? "auto"}`);
+      }
+      if (typeof body.roundRobin === "boolean") {
+        sys.roundRobin = body.roundRobin;
+        deps.roundRobin = body.roundRobin;
+        log(`Routing strategy updated to: ${sys.roundRobin ? "Round-Robin" : "Predictive Score"}`);
+      }
+      saveSystem(sys);
+      return handleGetConfig();
+    } catch {
+      return errorResponse(400, "invalid_request", "Invalid JSON payload.");
+    }
+  }
+
   function handleIndex(): Response {
     const model = deps.getDefaultModel();
     return new Response(
@@ -442,6 +473,8 @@ export function createRouterServer(deps: RouterDeps) {
     if (req.method === "GET" && path === "/health") return handleHealth();
     if (req.method === "GET" && path === "/dashboard") return handleDashboard();
     if (req.method === "GET" && path === "/api/stats") return handleStats();
+    if (req.method === "GET" && path === "/api/config") return handleGetConfig();
+    if (req.method === "POST" && path === "/api/config") return handleUpdateConfig(req);
     if (req.method === "GET" && path === "/api/keys") return handleGetKeys();
     if (req.method === "POST" && path === "/api/keys") return handleAddKey(req);
     if (req.method === "DELETE" && path === "/api/keys") return handleDeleteKey(req);
