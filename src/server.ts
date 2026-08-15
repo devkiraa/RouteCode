@@ -148,10 +148,12 @@ export function createRouterServer(deps: RouterDeps) {
     const customMatch = findProviderForModel(resolved);
     const isCustomModel = !!customMatch;
 
-    // If request is for a custom provider model, candidate failovers use provider models.
+    // If request is for a custom provider model, candidate failovers use that provider's models.
     // Otherwise candidate failovers use OpenRouter models only.
     const availableModels = isCustomModel
-      ? getEnabledProviderModels().map((m) => m.id)
+      ? getEnabledProviderModels()
+          .filter((m) => m.providerId === customMatch.provider.id)
+          .map((m) => m.id)
       : deps.getModels().map((m) => m.id);
 
     const candidates = fallbackModelCandidates(
@@ -230,7 +232,7 @@ export function createRouterServer(deps: RouterDeps) {
                 keyLabel: matchedProvider.name,
                 status: upstream.status,
                 latencyMs: duration,
-                retried: false,
+                retried: triedFallback,
               });
 
               if (forwarded.stream) {
@@ -251,6 +253,11 @@ export function createRouterServer(deps: RouterDeps) {
               lastStatus = upstream.status;
               lastBody = errText || JSON.stringify({ error: { type: "api_error", message: `Provider ${matchedProvider.name} returned status ${upstream.status}` } });
               log(`${id} ✗ ${matchedProvider.name}: status ${upstream.status} — ${errText.slice(0, 150)}`);
+              if (ci < candidates.length - 1) {
+                triedFallback = true;
+                log(`${id} ~ model "${candidate}" failed (${upstream.status}) → falling back to "${candidates[ci + 1]}"`);
+                continue;
+              }
               return new Response(lastBody, {
                 status: upstream.status,
                 headers: { "content-type": "application/json" },
@@ -281,7 +288,7 @@ export function createRouterServer(deps: RouterDeps) {
                 keyLabel: matchedProvider.name,
                 status: upstream.status,
                 latencyMs: duration,
-                retried: false,
+                retried: triedFallback,
               });
               log(`${id} → ${matchedProvider.name}: ${upstream.status} in ${duration}ms ✓`);
               return new Response(upstream.body, { status: upstream.status, headers: upstream.headers });
@@ -290,6 +297,11 @@ export function createRouterServer(deps: RouterDeps) {
               lastStatus = upstream.status;
               lastBody = errText || JSON.stringify({ error: { type: "api_error", message: `Provider ${matchedProvider.name} returned status ${upstream.status}` } });
               log(`${id} ✗ ${matchedProvider.name}: status ${upstream.status} — ${errText.slice(0, 150)}`);
+              if (ci < candidates.length - 1) {
+                triedFallback = true;
+                log(`${id} ~ model "${candidate}" failed (${upstream.status}) → falling back to "${candidates[ci + 1]}"`);
+                continue;
+              }
               return new Response(lastBody, {
                 status: upstream.status,
                 headers: { "content-type": "application/json" },
