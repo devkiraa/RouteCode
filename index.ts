@@ -33,6 +33,7 @@ import {
 } from "./src/models";
 import { KeyPool } from "./src/keys";
 import { createRouterServer } from "./src/server";
+import { loadProviders, saveProviders } from "./src/providers";
 
 const RAW_ASCII_LINES = [
   " ________  ________  ___  ___  _________  _______   ________  ________  ________  _______      ",
