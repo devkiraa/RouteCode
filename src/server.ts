@@ -145,16 +145,22 @@ export function createRouterServer(deps: RouterDeps) {
     // Model-level failover: a 404 (dead/unsupported model) or 429 (free-tier
     // rate limit) means this model can't serve the request, so the router retries
     // with the next candidate free model (resolved → default → first free).
-    const allAvailableIds = getAllAvailableModels().map((m) => m.id);
+    const customMatch = findProviderForModel(resolved);
+    const isCustomModel = !!customMatch;
+
+    // If request is for a custom provider model, candidate failovers use provider models.
+    // Otherwise candidate failovers use OpenRouter models only.
+    const availableModels = isCustomModel
+      ? getEnabledProviderModels().map((m) => m.id)
+      : deps.getModels().map((m) => m.id);
+
     const candidates = fallbackModelCandidates(
       resolved,
-      allAvailableIds,
+      availableModels,
       deps.getDefaultModel(),
     );
 
     const allKeyCandidates = deps.keyPool.pickOrder();
-    const customMatch = findProviderForModel(resolved);
-    const isCustomModel = !!customMatch;
 
     if (allKeyCandidates.length === 0 && !isCustomModel) {
       return errorResponse(500, "api_error", "No OpenRouter keys configured.");
@@ -197,10 +203,15 @@ export function createRouterServer(deps: RouterDeps) {
         try {
           if (matchedProvider.type === "openai") {
             const openAiBody = anthropicToOpenAIPayload({ ...forwarded, model: targetModelId });
-            const openAiHeaders: Record<string, string> = { "content-type": "application/json" };
-            if (matchedProvider.keys && matchedProvider.keys.length > 0) {
-              openAiHeaders["authorization"] = `Bearer ${matchedProvider.keys[0]}`;
+            const openAiHeaders: Record<string, string> = {
+              "content-type": "application/json",
+              "User-Agent": "opencode/cli",
+            };
+            const apiKey = matchedProvider.keys?.[0] || (matchedProvider.id === "opencode" ? "public" : "");
+            if (apiKey) {
+              openAiHeaders["authorization"] = `Bearer ${apiKey}`;
             }
+
             const targetUrl = `${matchedProvider.baseUrl.replace(/\/+$/, "")}/chat/completions`;
             const upstream = await fetch(targetUrl, {
               method: "POST",
@@ -237,18 +248,20 @@ export function createRouterServer(deps: RouterDeps) {
               }
             } else {
               const errText = await upstream.text();
-              if (lastStatus === 502) {
-                lastStatus = upstream.status;
-                lastBody = errText;
-              }
+              lastStatus = upstream.status;
+              lastBody = errText || JSON.stringify({ error: { type: "api_error", message: `Provider ${matchedProvider.name} returned status ${upstream.status}` } });
               log(`${id} ✗ ${matchedProvider.name}: status ${upstream.status} — ${errText.slice(0, 150)}`);
-              continue;
+              return new Response(lastBody, {
+                status: upstream.status,
+                headers: { "content-type": "application/json" },
+              });
             }
           } else {
             // Anthropic format (e.g. ZCode API)
             const anthropicHeaders: Record<string, string> = { "content-type": "application/json" };
-            if (matchedProvider.keys && matchedProvider.keys.length > 0) {
-              anthropicHeaders["x-api-key"] = matchedProvider.keys[0];
+            const apiKey = matchedProvider.keys?.[0] || "zcode";
+            if (apiKey) {
+              anthropicHeaders["x-api-key"] = apiKey;
             }
             const targetUrl = `${matchedProvider.baseUrl.replace(/\/+$/, "")}${path}`;
             const upstream = await fetch(targetUrl, {
@@ -274,12 +287,13 @@ export function createRouterServer(deps: RouterDeps) {
               return new Response(upstream.body, { status: upstream.status, headers: upstream.headers });
             } else {
               const errText = await upstream.text();
-              if (lastStatus === 502) {
-                lastStatus = upstream.status;
-                lastBody = errText;
-              }
+              lastStatus = upstream.status;
+              lastBody = errText || JSON.stringify({ error: { type: "api_error", message: `Provider ${matchedProvider.name} returned status ${upstream.status}` } });
               log(`${id} ✗ ${matchedProvider.name}: status ${upstream.status} — ${errText.slice(0, 150)}`);
-              continue;
+              return new Response(lastBody, {
+                status: upstream.status,
+                headers: { "content-type": "application/json" },
+              });
             }
           }
         } catch (err) {

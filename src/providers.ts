@@ -129,6 +129,7 @@ export function getEnabledProviderModels(): ProviderModelInfo[] {
 
 /** Find target provider & raw model id for any requested model string. */
 export function findProviderForModel(modelId: string): { provider: ProviderConfig; rawModelId: string } | null {
+  if (modelId.startsWith("test/")) return null;
   const providers = loadProviders();
 
   // 1) Prefix match (e.g. "opencode/deepseek-v4-flash-free" -> provider "opencode", rawModelId "deepseek-v4-flash-free")
@@ -136,13 +137,13 @@ export function findProviderForModel(modelId: string): { provider: ProviderConfi
     const parts = modelId.split("/");
     const prefix = parts[0];
     const rawModelId = parts.slice(1).join("/");
-    const p = providers.find((x) => x.id === prefix);
+    const p = providers.find((x) => x.id === prefix && x.enabled);
     if (p && p.id !== "openrouter") return { provider: p, rawModelId };
   }
 
   // 2) Exact model list match across all non-openrouter providers
   for (const p of providers) {
-    if (p.id === "openrouter") continue;
+    if (!p.enabled || p.id === "openrouter") continue;
     if (Array.isArray(p.models)) {
       for (const m of p.models) {
         const id = typeof m === "string" ? m : m.id;
