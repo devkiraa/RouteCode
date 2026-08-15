@@ -304,13 +304,18 @@ export function createRouterServer(deps: RouterDeps) {
     return allModels;
   }
 
-  function handleModels(): Response {
+  function getSelectedModels(): Array<{ id: string; name?: string; providerId: string; providerName: string }> {
     let models = getAllAvailableModels();
     const sys = loadSystem();
     if (Array.isArray(sys.enabledModels)) {
       const allowed = new Set(sys.enabledModels);
       models = models.filter((m) => allowed.has(m.id));
     }
+    return models;
+  }
+
+  function handleModels(): Response {
+    const models = getSelectedModels();
     // Claude Code's picker only keeps ids matching /(claude|anthropic)/i, so
     // non-Claude models are advertised under a gateway alias
     // (anthropic/claude-route-<base64url>) that the router decodes on requests.
@@ -352,7 +357,8 @@ export function createRouterServer(deps: RouterDeps) {
       uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
       port: deps.port,
       defaultModel: deps.getDefaultModel(),
-      freeModels: deps.getModels().length,
+      freeModels: getSelectedModels().length,
+      totalModels: getAllAvailableModels().length,
       keyCount: deps.keyPool.size,
       keys,
       routing: {

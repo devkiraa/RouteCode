@@ -475,9 +475,9 @@
         <div class="metric-sub" id="val-keys-sub">Healthy / Total</div>
       </div>
       <div class="metric-card">
-        <div class="metric-title">Free Models Catalog</div>
-        <div class="metric-value" id="val-models">0</div>
-        <div class="metric-sub" id="val-default-model">Default: auto</div>
+        <div class="metric-title">Selected Models Catalog</div>
+        <div class="metric-value" id="val-models">0 / 0</div>
+        <div class="metric-sub" id="val-default-model">Active in /model picker</div>
       </div>
       <div class="metric-card">
         <div class="metric-title">Total Requests</div>
@@ -779,8 +779,9 @@
       document.getElementById('val-keys').textContent = `${healthyKeys} / ${data.health.keys.length}`;
       document.getElementById('val-keys-sub').textContent = healthyKeys === data.health.keys.length ? 'All Healthy ✓' : `${data.health.keys.length - healthyKeys} in cooldown`;
 
-      document.getElementById('val-models').textContent = data.health.freeModels;
-      document.getElementById('val-default-model').textContent = `Default: ${data.health.defaultModel || 'auto'}`;
+      const totalModels = data.health.totalModels || data.health.freeModels;
+      document.getElementById('val-models').textContent = `${data.health.freeModels} / ${totalModels}`;
+      document.getElementById('val-default-model').textContent = `${data.health.freeModels} active in /model picker`;
 
       document.getElementById('val-requests').textContent = data.logs.length;
       
