@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RouteCode — Request Logs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --border: #E2E8F0;
+      --border-hover: #CBD5E1;
+      --text-primary: #0F172A;
+      --text-secondary: #475569;
+      --text-muted: #94A3B8;
+      --primary: #2563EB;
+      --primary-hover: #1D4ED8;
+      --primary-subtle: #EFF6FF;
+      --success: #10B981;
+      --success-subtle: #ECFDF5;
+      --warning: #F59E0B;
+      --warning-subtle: #FFFBEB;
+      --danger: #EF4444;
+      --danger-subtle: #FEF2F2;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+      --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    [data-theme="dark"] {
+      --bg: #0B0F17;
+      --card-bg: #151D2A;
+      --border: #1E293B;
+      --border-hover: #334155;
+      --text-primary: #F8FAFC;
+      --text-secondary: #94A3B8;
+      --text-muted: #64748B;
+      --primary: #3B82F6;
+      --primary-hover: #2563EB;
+      --primary-subtle: rgba(59, 130, 246, 0.12);
+      --success: #10B981;
+      --success-subtle: rgba(16, 185, 129, 0.12);
+      --warning: #F59E0B;
+      --warning-subtle: rgba(245, 158, 11, 0.12);
+      --danger: #EF4444;
+      --danger-subtle: rgba(239, 68, 68, 0.12);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-primary);
+      line-height: 1.5;
+      padding-bottom: 60px;
+      transition: background-color 0.2s, color 0.2s;
+    }
+
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Header & Navigation */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 28px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #2563EB, #4F46E5);
+      color: white;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 22px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+    .brand-text h1 {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--text-primary);
+    }
+    .brand-text p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 4px;
+      background-color: var(--card-bg);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+    }
+    .nav-tab {
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .nav-tab:hover { color: var(--text-primary); }
+    .nav-tab.active {
+      background-color: var(--primary);
+      color: white;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background-color: var(--card-bg);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      box-shadow: var(--shadow-sm);
+    }
+    .btn:hover {
+      border-color: var(--border-hover);
+      background-color: var(--bg);
+    }
+    .btn-icon { padding: 8px; border-radius: var(--radius-sm); }
+
+    /* Section Cards */
+    .section-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .input-field, .select-input {
+      padding: 8px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background-color: var(--card-bg);
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .input-field:focus, .select-input:focus { border-color: var(--primary); }
+
+    /* Tables */
+    .table-container { width: 100%; overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+    th {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    tr.log-row-clickable { cursor: pointer; transition: background-color 0.15s; }
+    tr.log-row-clickable:hover { background-color: var(--primary-subtle) !important; }
+    .code-font { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+    .log-status-200 { color: var(--success); font-weight: 700; }
+    .log-status-400, .log-status-429 { color: var(--warning); font-weight: 700; }
+    .log-status-500 { color: var(--danger); font-weight: 700; }
+
+    /* Pagination */
+    .pagination-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 18px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Modal Backdrop & Card */
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(4px);
+    }
+    .modal-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      width: 540px;
+      max-width: 92vw;
+      box-shadow: var(--shadow-lg);
+      padding: 24px;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+    .btn-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text-muted); }
+    .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .detail-label { font-weight: 600; color: var(--text-muted); font-size: 12px; }
+    .detail-value { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-primary); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-icon">R</div>
+        <div class="brand-text">
+          <h1>RouteCode</h1>
+          <p>Claude Code × OpenRouter Gateway Console</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs">
+        <a href="/dashboard" class="nav-tab">Overview</a>
+        <a href="/logs" class="nav-tab active">Live Request Logs</a>
+      </nav>
+
+      <div class="header-actions">
+        <button class="btn btn-icon" onclick="toggleTheme()" title="Toggle Dark/Light Theme">
+          <svg id="theme-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+        <button class="btn" onclick="fetchStats()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          Refresh Logs
+        </button>
+      </div>
+    </header>
+
+    <!-- Logs Console Card -->
+    <div class="section-card">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Live Request Telemetry & Payload Inspector</div>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">Click any request row to view payload breakdown, error traces, and candidate model fallbacks.</p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <input type="text" id="log-search" class="input-field" style="width: 220px;" placeholder="Search logs by model, key, status..." oninput="onSearchChange()">
+          <button class="btn" onclick="exportLogsJSON()">Export JSON</button>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Req ID</th>
+              <th>Requested Model</th>
+              <th>Resolved Model</th>
+              <th>API Key Used</th>
+              <th>Status</th>
+              <th>Latency</th>
+            </tr>
+          </thead>
+          <tbody id="logs-tbody">
+            <tr><td colspan="7" style="text-align: center; padding: 32px; color: var(--text-muted);">No requests recorded yet. Make a request via Claude Code!</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination Footer -->
+      <div class="pagination-bar">
+        <div id="pagination-info">Showing 0 of 0 logs</div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <label for="page-size-select" style="font-size: 12px; font-weight: 600;">Per page:</label>
+          <select id="page-size-select" class="select-input" style="width: 72px; padding: 4px 8px;" onchange="onPageSizeChange(this.value)">
+            <option value="10" selected>10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          <button id="btn-prev-page" class="btn" style="padding: 4px 10px;" onclick="changePage(-1)">Prev</button>
+          <span id="page-num-display" style="font-weight: 700; font-size: 13px;">Page 1</span>
+          <button id="btn-next-page" class="btn" style="padding: 4px 10px;" onclick="changePage(1)">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log Detail Modal -->
+  <div id="log-modal" class="modal-backdrop" style="display: none;" onclick="closeLogModal(event)">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">Request Payload Details</div>
+        <button class="btn-close" onclick="closeLogModal()">✕</button>
+      </div>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <script>
+    let currentLogs = [];
+    let currentPage = 1;
+    let pageSize = 10;
+
+    function toggleTheme() {
+      const isDark = document.body.getAttribute('data-theme') === 'dark';
+      document.body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      localStorage.setItem('routecode-theme', isDark ? 'light' : 'dark');
+    }
+
+    if (localStorage.getItem('routecode-theme') === 'dark') {
+      document.body.setAttribute('data-theme', 'dark');
+    }
+
+    async function fetchStats() {
+      try {
+        const res = await fetch('/api/stats');
+        if (!res.ok) return;
+        const data = await res.json();
+        currentLogs = data.logs || [];
+        renderLogs();
+      } catch (e) {
+        console.error('Failed to fetch logs:', e);
+      }
+    }
+
+    function onSearchChange() {
+      currentPage = 1;
+      renderLogs();
+    }
+
+    function onPageSizeChange(newSize) {
+      pageSize = parseInt(newSize, 10);
+      currentPage = 1;
+      renderLogs();
+    }
+
+    function changePage(delta) {
+      currentPage += delta;
+      renderLogs();
+    }
+
+    function openLogModal(logId) {
+      const log = currentLogs.find(l => l.id === logId);
+      if (!log) return;
+
+      const statusGroup = Math.floor(log.status / 100) * 100;
+      const errHtml = log.error ? '<div style="margin-top: 12px; font-weight: 600; color: var(--danger);">Error: ' + log.error + '</div>' : '';
+
+      const content = document.getElementById('modal-content');
+      content.innerHTML = 
+        '<div class="detail-row"><span class="detail-label">Request ID</span><span class="detail-value">#' + log.id + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Timestamp</span><span class="detail-value">' + log.timestamp + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Requested Model</span><span class="detail-value">' + (log.requestedModel || 'auto') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Resolved Model</span><span class="detail-value">' + log.resolvedModel + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">API Key Used</span><span class="detail-value">' + log.keyLabel + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">HTTP Status</span><span class="detail-value log-status-' + statusGroup + '">' + log.status + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Latency</span><span class="detail-value">' + log.latencyMs + 'ms</span></div>' +
+        errHtml;
+
+      document.getElementById('log-modal').style.display = 'flex';
+    }
+
+    function closeLogModal() {
+      document.getElementById('log-modal').style.display = 'none';
+    }
+
+    function exportLogsJSON() {
+      if (!currentLogs || currentLogs.length === 0) return;
+      const blob = new Blob([JSON.stringify(currentLogs, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `routecode-logs-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function renderLogs() {
+      const query = (document.getElementById('log-search').value || '').toLowerCase();
+      const tbody = document.getElementById('logs-tbody');
+
+      const filtered = currentLogs.filter(l => 
+        (l.requestedModel || '').toLowerCase().includes(query) ||
+        l.resolvedModel.toLowerCase().includes(query) ||
+        l.keyLabel.toLowerCase().includes(query) ||
+        String(l.status).includes(query) ||
+        String(l.id).includes(query)
+      );
+
+      const totalLogs = filtered.length;
+      const totalPages = Math.ceil(totalLogs / pageSize) || 1;
+      
+      if (currentPage < 1) currentPage = 1;
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = Math.min(startIndex + pageSize, totalLogs);
+      const pageLogs = filtered.slice(startIndex, endIndex);
+
+      document.getElementById('pagination-info').textContent = totalLogs > 0 
+        ? `Showing ${startIndex + 1}-${endIndex} of ${totalLogs} logs` 
+        : 'Showing 0 of 0 logs';
+      
+      document.getElementById('page-num-display').textContent = `Page ${currentPage} of ${totalPages}`;
+      document.getElementById('btn-prev-page').disabled = currentPage <= 1;
+      document.getElementById('btn-next-page').disabled = currentPage >= totalPages;
+
+      if (pageLogs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 32px; color: var(--text-muted);">No matching request logs found.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = pageLogs.map(l => `
+        <tr class="log-row-clickable" onclick="openLogModal(${l.id})">
+          <td class="code-font">${l.timestamp.split('T')[1]?.slice(0, 8) || l.timestamp}</td>
+          <td class="code-font">#${l.id}</td>
+          <td class="code-font" style="max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${l.requestedModel || 'auto'}</td>
+          <td class="code-font" style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${l.resolvedModel}</td>
+          <td class="code-font">${l.keyLabel}</td>
+          <td><span class="log-status-${Math.floor(l.status / 100) * 100}">${l.status}</span></td>
+          <td class="code-font">${l.latencyMs}ms</td>
+        </tr>
+      `).join('');
+    }
+
+    fetchStats();
+    setInterval(fetchStats, 1000);
+  </script>
+</body>
+</html>
