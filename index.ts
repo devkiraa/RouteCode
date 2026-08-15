@@ -174,7 +174,7 @@ function loadModelsFile(path: string): OpenRouterModel[] {
   const json = JSON.parse(text) as { data?: unknown[] } | unknown[];
   const array = Array.isArray(json) ? json : Array.isArray((json as any)?.data) ? (json as any).data : [];
   return array
-    .map((m) => {
+    .map((m: unknown) => {
       const o = m as Record<string, unknown>;
       if (!o || typeof o.id !== "string") return null;
       return {
@@ -184,7 +184,7 @@ function loadModelsFile(path: string): OpenRouterModel[] {
         pricing: o.pricing as OpenRouterModel["pricing"],
       };
     })
-    .filter((m): m is OpenRouterModel => m !== null);
+    .filter((m: OpenRouterModel | null): m is OpenRouterModel => m !== null);
 }
 
 async function main(): Promise<void> {
@@ -229,7 +229,7 @@ async function main(): Promise<void> {
 
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     const userKey = await new Promise<string>((res) => {
-      rl.question("  Paste your OpenRouter API key (sk-or-v1-...): ", (ans) => {
+      rl.question("  Paste your OpenRouter API key (sk-or-v1-...): ", (ans: string) => {
         rl.close();
         res(ans.trim());
       });
@@ -379,7 +379,7 @@ async function main(): Promise<void> {
 
   const runCommand = (raw: string) => void handleCommand(raw).finally(() => process.stdout.write("router> "));
 
-  rl.on("line", (line) => {
+  rl.on("line", (line: string) => {
     if (pickerActive) {
       if (lineWaiter) {
         const w = lineWaiter;
