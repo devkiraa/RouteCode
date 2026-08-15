@@ -43,11 +43,21 @@ const RAW_ASCII_LINES = [
   "    \\|__|\\|__|\\|_______|\\|_______|    \\|__|  \\|_______|\\|_______|\\|_______|\\|_______|\\|_______|",
 ];
 
+const ORANGE_GRADIENT = [
+  "\x1b[38;5;220m", // Gold Yellow
+  "\x1b[38;5;214m", // Amber Orange
+  "\x1b[38;5;208m", // Vibrant Orange
+  "\x1b[38;5;208m", // Vibrant Orange
+  "\x1b[38;5;202m", // Flame Orange
+  "\x1b[38;5;202m", // Flame Orange
+  "\x1b[38;5;166m", // Deep Fire Orange
+];
+
 const ASCII_BANNER_LINES = [
-  ...RAW_ASCII_LINES.map((l, i) => i < 2 ? `  \x1b[36m${l}\x1b[0m` : i < 4 ? `  \x1b[35m${l}\x1b[0m` : `  \x1b[34m${l}\x1b[0m`),
-  "  \x1b[38;5;39m==================================================================================================\x1b[0m",
-  "  \x1b[1;36m  RouteCode — Claude Code × OpenRouter Gateway Console \x1b[0m",
-  "  \x1b[38;5;39m==================================================================================================\x1b[0m",
+  ...RAW_ASCII_LINES.map((l, i) => `  ${ORANGE_GRADIENT[i]}${l}\x1b[0m`),
+  "  \x1b[38;5;208m==================================================================================================\x1b[0m",
+  "  \x1b[1;38;5;214m  RouteCode — Claude Code × OpenRouter Gateway Console \x1b[0m",
+  "  \x1b[38;5;208m==================================================================================================\x1b[0m",
 ];
 
 async function animateBanner(): Promise<void> {
@@ -57,16 +67,16 @@ async function animateBanner(): Promise<void> {
     await new Promise((r) => setTimeout(r, 15));
   }
 
-  // Step 2: Animate ONLY the RouteCode 3D ASCII text after completion
+  // Step 2: Post-generation Orange Color Wave Shimmer Animation
   const asciiColorPalettes = [
-    // Frame 1: Bright White -> Cyan glow sweep
-    ["\x1b[1;97m", "\x1b[1;97m", "\x1b[1;36m", "\x1b[1;36m", "\x1b[36m", "\x1b[34m", "\x1b[34m"],
-    // Frame 2: Yellow/Gold -> Electric Magenta sweep
-    ["\x1b[1;33m", "\x1b[1;33m", "\x1b[1;35m", "\x1b[1;35m", "\x1b[35m", "\x1b[1;36m", "\x1b[36m"],
-    // Frame 3: Cyan -> Gold -> White pulse
-    ["\x1b[1;36m", "\x1b[1;36m", "\x1b[1;97m", "\x1b[1;97m", "\x1b[1;33m", "\x1b[35m", "\x1b[35m"],
-    // Frame 4 (Final): Signature Cyan -> Magenta -> Blue gradient
-    ["\x1b[36m", "\x1b[36m", "\x1b[35m", "\x1b[35m", "\x1b[34m", "\x1b[34m", "\x1b[34m"],
+    // Frame 1: White/Gold light flash
+    ["\x1b[1;97m", "\x1b[1;97m", "\x1b[38;5;226m", "\x1b[38;5;226m", "\x1b[38;5;220m", "\x1b[38;5;214m", "\x1b[38;5;208m"],
+    // Frame 2: Bright Amber sweep
+    ["\x1b[38;5;226m", "\x1b[38;5;220m", "\x1b[38;5;214m", "\x1b[38;5;208m", "\x1b[38;5;202m", "\x1b[38;5;202m", "\x1b[38;5;166m"],
+    // Frame 3: Flame Red-Orange pulse
+    ["\x1b[38;5;214m", "\x1b[38;5;208m", "\x1b[38;5;202m", "\x1b[38;5;196m", "\x1b[38;5;202m", "\x1b[38;5;208m", "\x1b[38;5;214m"],
+    // Frame 4 (Final): Rich Orange Color Gradient
+    ORANGE_GRADIENT,
   ];
 
   for (const palette of asciiColorPalettes) {
