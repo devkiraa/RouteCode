@@ -33,49 +33,51 @@ import {
 import { KeyPool } from "./src/keys";
 import { createRouterServer } from "./src/server";
 
+const RAW_ASCII_LINES = [
+  " ________  ________  ___  ___  _________  _______   ________  ________  ________  _______      ",
+  "|\\   __  \\|\\   __  \\|\\  \\|\\  \\|\\___   ___\\\\  ___ \\ |\\   ____\\|\\   __  \\|\\   ___ \\|\\  ___ \\     ",
+  "\\ \\  |\\  \\ \\  |\\  \\ \\  \\\\\\  \\|___ \\  \\_\\ \\   __/|\\ \\  \\___|\\ \\  |\\  \\ \\  \\_|\\ \\ \\   __/|    ",
+  " \\ \\   _  _\\ \\  \\\\\\  \\ \\  \\\\\\  \\   \\ \\  \\ \\ \\  \\_|/_\\ \\  \\    \\ \\  \\\\\\  \\ \\  \\ \\\\ \\ \\  \\_|/__  ",
+  "  \\ \\  \\\\  \\\\ \\  \\\\\\  \\ \\  \\\\\\  \\   \\ \\  \\ \\ \\  \\_|\\ \\ \\  \\____\\ \\  \\\\\\  \\ \\  \\_\\\\ \\ \\  \\_|\\ \\ ",
+  "   \\ \\__\\\\ _\\\\ \\_______\\ \\_______\\   \\ \\__\\ \\ \\_______\\ \\_______\\ \\_______\\ \\_______\\ \\_______\\",
+  "    \\|__|\\|__|\\|_______|\\|_______|    \\|__|  \\|_______|\\|_______|\\|_______|\\|_______|\\|_______|",
+];
+
 const ASCII_BANNER_LINES = [
-  "  \x1b[36m ________  ________  ___  ___  _________  _______   ________  ________  ________  _______      \x1b[0m",
-  "  \x1b[36m|\\   __  \\|\\   __  \\|\\  \\|\\  \\|\\___   ___\\\\  ___ \\ |\\   ____\\|\\   __  \\|\\   ___ \\|\\  ___ \\     \x1b[0m",
-  "  \x1b[35m\\ \\  |\\  \\ \\  |\\  \\ \\  \\\\\\  \\|___ \\  \\_\\ \\   __/|\\ \\  \\___|\\ \\  |\\  \\ \\  \\_|\\ \\ \\   __/|    \x1b[0m",
-  "  \x1b[35m \\ \\   _  _\\ \\  \\\\\\  \\ \\  \\\\\\  \\   \\ \\  \\ \\ \\  \\_|/_\\ \\  \\    \\ \\  \\\\\\  \\ \\  \\ \\\\ \\ \\  \\_|/__  \x1b[0m",
-  "  \x1b[34m  \\ \\  \\\\  \\\\ \\  \\\\\\  \\ \\  \\\\\\  \\   \\ \\  \\ \\ \\  \\_|\\ \\ \\  \\____\\ \\  \\\\\\  \\ \\  \\_\\\\ \\ \\  \\_|\\ \\\x1b[0m",
-  "  \x1b[34m   \\ \\__\\\\ _\\\\ \\_______\\ \\_______\\   \\ \\__\\ \\ \\_______\\ \\_______\\ \\_______\\ \\_______\\ \\_______\\\x1b[0m",
-  "  \x1b[34m    \\|__|\\|__|\\|_______|\\|_______|    \\|__|  \\|_______|\\|_______|\\|_______|\\|_______|\\|_______|\x1b[0m",
+  ...RAW_ASCII_LINES.map((l, i) => i < 2 ? `  \x1b[36m${l}\x1b[0m` : i < 4 ? `  \x1b[35m${l}\x1b[0m` : `  \x1b[34m${l}\x1b[0m`),
   "  \x1b[38;5;39m==================================================================================================\x1b[0m",
   "  \x1b[1;36m  RouteCode — Claude Code × OpenRouter Gateway Console \x1b[0m",
   "  \x1b[38;5;39m==================================================================================================\x1b[0m",
 ];
 
 async function animateBanner(): Promise<void> {
-  // Line-by-line 3D ASCII render
+  // Step 1: Initial line-by-line 3D ASCII render
   for (const line of ASCII_BANNER_LINES) {
     console.log(line);
     await new Promise((r) => setTimeout(r, 15));
   }
 
-  // Post-completion RouteCode shimmer pulse
-  const shimmerFrames = [
-    "  \x1b[1;97m  ▶▶▶ RouteCode — Claude Code × OpenRouter Gateway Console ◀◀◀ \x1b[0m",
-    "  \x1b[1;33m  ⚡ RouteCode — Claude Code × OpenRouter Gateway Console ⚡ \x1b[0m",
-    "  \x1b[1;36m  ✓ RouteCode — Claude Code × OpenRouter Gateway Console \x1b[0m",
+  // Step 2: Animate ONLY the RouteCode 3D ASCII text after completion
+  const asciiColorPalettes = [
+    // Frame 1: Bright White -> Cyan glow sweep
+    ["\x1b[1;97m", "\x1b[1;97m", "\x1b[1;36m", "\x1b[1;36m", "\x1b[36m", "\x1b[34m", "\x1b[34m"],
+    // Frame 2: Yellow/Gold -> Electric Magenta sweep
+    ["\x1b[1;33m", "\x1b[1;33m", "\x1b[1;35m", "\x1b[1;35m", "\x1b[35m", "\x1b[1;36m", "\x1b[36m"],
+    // Frame 3: Cyan -> Gold -> White pulse
+    ["\x1b[1;36m", "\x1b[1;36m", "\x1b[1;97m", "\x1b[1;97m", "\x1b[1;33m", "\x1b[35m", "\x1b[35m"],
+    // Frame 4 (Final): Signature Cyan -> Magenta -> Blue gradient
+    ["\x1b[36m", "\x1b[36m", "\x1b[35m", "\x1b[35m", "\x1b[34m", "\x1b[34m", "\x1b[34m"],
   ];
 
-  for (const frame of shimmerFrames) {
-    process.stdout.write("\x1b[2A\x1b[2K" + frame + "\n\n");
-    await new Promise((r) => setTimeout(r, 90));
-  }
-
-  // RouteCode pulse boot sequence
-  const bootPulses = [
-    "  \x1b[38;5;39m[RouteCode]\x1b[0m Booting gateway engine ⚡",
-    "  \x1b[38;5;39m[RouteCode]\x1b[0m Proactive rate-limit scoring online 🎯",
-    "  \x1b[32m[RouteCode]\x1b[0m RouteCode Online & Ready 🚀",
-  ];
-
-  for (const pulse of bootPulses) {
-    process.stdout.write(pulse);
-    await new Promise((r) => setTimeout(r, 120));
-    process.stdout.write("\r\x1b[2K");
+  for (const palette of asciiColorPalettes) {
+    // Move up 10 lines to top of ASCII banner
+    process.stdout.write("\x1b[10A");
+    for (let i = 0; i < RAW_ASCII_LINES.length; i++) {
+      process.stdout.write(`\x1b[2K  ${palette[i]}${RAW_ASCII_LINES[i]}\x1b[0m\n`);
+    }
+    // Skip remaining 3 title/border lines
+    process.stdout.write("\x1b[3B");
+    await new Promise((r) => setTimeout(r, 100));
   }
 }
 
