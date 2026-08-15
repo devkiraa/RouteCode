@@ -47,9 +47,35 @@ const ASCII_BANNER_LINES = [
 ];
 
 async function animateBanner(): Promise<void> {
+  // Line-by-line 3D ASCII render
   for (const line of ASCII_BANNER_LINES) {
     console.log(line);
     await new Promise((r) => setTimeout(r, 15));
+  }
+
+  // Post-completion RouteCode shimmer pulse
+  const shimmerFrames = [
+    "  \x1b[1;97m  ▶▶▶ RouteCode — Claude Code × OpenRouter Gateway Console ◀◀◀ \x1b[0m",
+    "  \x1b[1;33m  ⚡ RouteCode — Claude Code × OpenRouter Gateway Console ⚡ \x1b[0m",
+    "  \x1b[1;36m  ✓ RouteCode — Claude Code × OpenRouter Gateway Console \x1b[0m",
+  ];
+
+  for (const frame of shimmerFrames) {
+    process.stdout.write("\x1b[2A\x1b[2K" + frame + "\n\n");
+    await new Promise((r) => setTimeout(r, 90));
+  }
+
+  // RouteCode pulse boot sequence
+  const bootPulses = [
+    "  \x1b[38;5;39m[RouteCode]\x1b[0m Booting gateway engine ⚡",
+    "  \x1b[38;5;39m[RouteCode]\x1b[0m Proactive rate-limit scoring online 🎯",
+    "  \x1b[32m[RouteCode]\x1b[0m RouteCode Online & Ready 🚀",
+  ];
+
+  for (const pulse of bootPulses) {
+    process.stdout.write(pulse);
+    await new Promise((r) => setTimeout(r, 120));
+    process.stdout.write("\r\x1b[2K");
   }
 }
 
