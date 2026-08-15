@@ -128,7 +128,7 @@ describe("gateway endpoints", () => {
   test("GET / returns banner", async () => {
     const res = await fetch(`${routerUrl}/`);
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain("OpenRouter Claude Gateway");
+    expect(await res.text()).toContain("RouteCode");
   });
 
   test("GET /health reports model and key pool", async () => {
@@ -146,7 +146,7 @@ describe("gateway endpoints", () => {
     const res = await fetch(`${routerUrl}/dashboard`);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
-    expect(await res.text()).toContain("OpenRouter Claude Gateway");
+    expect(await res.text()).toContain("RouteCode");
   });
 
   test("GET /api/stats returns telemetry stats JSON", async () => {

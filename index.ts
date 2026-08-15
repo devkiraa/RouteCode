@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 /**
- * OpenRouter Claude Gateway — Zero-latency failover gateway for Claude Code & OpenRouter.
+ * RouteCode — Zero-latency failover gateway for Claude Code & OpenRouter.
  *
- *   npx openrouter-claude-router       # start — all free OpenRouter models available
+ *   npx routecode                      # start — all free OpenRouter models available
  *   bun run index.ts --model <id>      # force one free model as default override
  *   bun run index.ts --select-model    # open interactive picker
  *
@@ -33,17 +33,13 @@ import { KeyPool } from "./src/keys";
 import { createRouterServer } from "./src/server";
 
 const ASCII_BANNER_LINES = [
-  "  \x1b[36m   ___  ___ ___ _  _ ___ ___  _   _ _____ ___ ___   \x1b[0m",
-  "  \x1b[36m  / _ \\| _ \\ __| \\| | _ \\ _ \\| | | |_   _| __| _ \\  \x1b[0m",
-  "  \x1b[36m | (_) |  _/ _|| .` |   /   /| |_| | | | | _||   /  \x1b[0m",
-  "  \x1b[36m  \\___/|_| |___|_|\\_|_|_\\_|_\\ \\___/  |_| |___|_|_\\  \x1b[0m",
-  "  \x1b[35m   ___ _    _   _  ___  ___  ___    ___  _ _____ _____ _  _  ___   \x1b[0m",
-  "  \x1b[35m  / __| |  /_\\ | ||   \\| __|/ __|  / _ \\/ |  _  |_   _| || |/ _ \\  \x1b[0m",
-  "  \x1b[35m | (__| |_/ _ \\| || |) | _| | (_ | | (_) | | |_| | | | | __ | (_) | \x1b[0m",
-  "  \x1b[35m  \\___|___/_/ \\_\\_||___/|___|\\___|  \\___/|_|_____| |_| |_||_|\\___/  \x1b[0m",
-  "  \x1b[34m==================================================================\x1b[0m",
-  "  \x1b[1m  OpenRouter Claude Gateway — Failover & Rate Limit Router \x1b[0m",
-  "  \x1b[34m==================================================================\x1b[0m",
+  "  \x1b[36m   ___  ___  _   _ _____ ___   ___ ___  ___  ___ \x1b[0m",
+  "  \x1b[36m  | _ \\/ _ \\| | | |_   _| __| / __/ _ \\|   \\/ _ \\\x1b[0m",
+  "  \x1b[36m  |   / (_) | |_| | | | | _| | (_| (_) | |) |  __/\x1b[0m",
+  "  \x1b[36m  |_|_\\\\___/ \\___/  |_| |___| \\___\\___/|___/\\___|\x1b[0m",
+  "  \x1b[34m========================================================\x1b[0m",
+  "  \x1b[1m  RouteCode — Claude Code × OpenRouter Gateway \x1b[0m",
+  "  \x1b[34m========================================================\x1b[0m",
 ];
 
 async function animateBanner(): Promise<void> {
@@ -93,17 +89,17 @@ function parseArgs(argv: string[]): CliArgs {
 
 function printUsage(): void {
   console.log(`
-Kickbacks Router — Claude Code × OpenRouter failover gateway
+RouteCode — Claude Code × OpenRouter Failover Gateway
 
 All OpenRouter free models are available — no selection needed. Every free
 model shows up in Claude Code's /model picker.
 
 Usage:
-  bun run index.ts                 start the router
-  bun run index.ts --model <id>    force one free model as the default override
+  npx routecode                    start RouteCode
+  bun run index.ts                 start locally
+  bun run index.ts --model <id>    force one free model as default override
   bun run index.ts --select-model  open the picker to set that override
   bun run index.ts --port <n>      listen on a different port (default 8080)
-  bun run index.ts --models-file <path>  load a model list from a JSON file (offline/testing)
 
 Files:
   settings.json   OpenRouter API keys (edit these — one per account)

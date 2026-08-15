@@ -1,14 +1,13 @@
 {
-  "name": "openrouter-claude-router",
+  "name": "routecode",
   "version": "1.0.0",
-  "description": "Zero-latency intelligent OpenRouter failover gateway for Claude Code & LLM tools",
+  "description": "RouteCode — Zero-latency intelligent OpenRouter failover gateway for Claude Code",
   "type": "module",
   "main": "index.ts",
   "module": "index.ts",
   "bin": {
-    "openrouter-claude-router": "index.ts",
-    "claude-router": "index.ts",
-    "openclaw": "index.ts"
+    "routecode": "index.ts",
+    "route-code": "index.ts"
   },
   "scripts": {
     "start": "bun index.ts",
@@ -16,6 +15,7 @@
     "test": "bun test"
   },
   "keywords": [
+    "routecode",
     "claude",
     "claude-code",
     "openrouter",

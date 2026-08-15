@@ -128,7 +128,7 @@ export function createRouterServer(deps: RouterDeps) {
       authorization: "",
       // OpenRouter attribution (recommended, especially for the free tier).
       "HTTP-Referer": `http://127.0.0.1:${deps.port}`,
-      "X-Title": "OpenRouter Claude Gateway",
+      "X-Title": "RouteCode",
     };
     const anthropicVersion = req.headers.get("anthropic-version");
     const anthropicBeta = req.headers.get("anthropic-beta");
@@ -413,7 +413,7 @@ export function createRouterServer(deps: RouterDeps) {
     const model = deps.getDefaultModel();
     return new Response(
       [
-        "OpenRouter Claude Gateway — Failover & Rate Limit Router",
+        "RouteCode — Claude Code × OpenRouter Failover Gateway",
         "",
         `  Free models   : ${deps.getModels().length} (listed in Claude Code's /model picker)`,
         `  Default model : ${model ?? "(auto — Claude Code picks from the free list)"}`,

@@ -1,4 +1,4 @@
-# OpenRouter Claude Gateway (`openrouter-claude-router`)
+# RouteCode (`routecode`)
 
 Zero-latency intelligent OpenRouter failover gateway for **Claude Code** and LLM developer tools, built with [Bun](https://bun.sh).
 
@@ -7,9 +7,9 @@ Zero-latency intelligent OpenRouter failover gateway for **Claude Code** and LLM
 Run instantly without cloning or manual setup:
 
 ```bash
-npx openrouter-claude-router
+npx routecode
 # or using bun
-bunx openrouter-claude-router
+bunx routecode
 ```
 
 Claude Code talks to one stable local endpoint (`http://127.0.0.1:8080`). The gateway:
@@ -71,7 +71,7 @@ Claude Code ──(Anthropic Messages API)──▶ gateway :8080 ──▶ Open
 
 ```bash
 # 2. Start the gateway
-npx openrouter-claude-router
+npx routecode
 ```
 
 That's it — no model selection. The router fetches the OpenRouter catalog, keeps the
