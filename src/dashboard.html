@@ -880,17 +880,20 @@
       const log = currentData.logs.find(l => l.id === logId);
       if (!log) return;
 
+      const statusGroup = Math.floor(log.status / 100) * 100;
+      const errHtml = log.error ? '<div style="margin-top: 12px; font-weight: 600; color: var(--danger);">Error: ' + log.error + '</div>' : '';
+
       const content = document.getElementById('modal-content');
-      content.innerHTML = `
-        <div class="detail-row"><span class="detail-label">Request ID</span><span class="detail-value">#${log.id}</span></div>
-        <div class="detail-row"><span class="detail-label">Timestamp</span><span class="detail-value">${log.timestamp}</span></div>
-        <div class="detail-row"><span class="detail-label">Requested Model</span><span class="detail-value">${log.requestedModel || 'auto'}</span></div>
-        <div class="detail-row"><span class="detail-label">Resolved Model</span><span class="detail-value">${log.resolvedModel}</span></div>
-        <div class="detail-row"><span class="detail-label">API Key Used</span><span class="detail-value">${log.keyLabel}</span></div>
-        <div class="detail-row"><span class="detail-label">HTTP Status</span><span class="detail-value log-status-${Math.floor(log.status / 100) * 100}">${log.status}</span></div>
-        <div class="detail-row"><span class="detail-label">Latency</span><span class="detail-value">${log.latencyMs}ms</span></div>
-        ${log.error ? `<div style="margin-top: 12px; font-weight: 600; color: var(--danger);">Error: ${log.error}</div>` : ''}
-      `;
+      content.innerHTML = 
+        '<div class="detail-row"><span class="detail-label">Request ID</span><span class="detail-value">#' + log.id + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Timestamp</span><span class="detail-value">' + log.timestamp + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Requested Model</span><span class="detail-value">' + (log.requestedModel || 'auto') + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Resolved Model</span><span class="detail-value">' + log.resolvedModel + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">API Key Used</span><span class="detail-value">' + log.keyLabel + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">HTTP Status</span><span class="detail-value log-status-' + statusGroup + '">' + log.status + '</span></div>' +
+        '<div class="detail-row"><span class="detail-label">Latency</span><span class="detail-value">' + log.latencyMs + 'ms</span></div>' +
+        errHtml;
+
       document.getElementById('log-modal').style.display = 'flex';
     }
 
