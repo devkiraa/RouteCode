@@ -11,8 +11,9 @@
 import type { KeyPool } from "./keys";
 import { fallbackModelCandidates, gatewayIdFor, realIdForGateway, type OpenRouterModel } from "./models";
 import { globalTelemetry } from "./telemetry";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, existsSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { PROJECT_ROOT, loadSettings, saveSettings, loadSystem, saveSystem } from "./config";
 
 export interface RouterDeps {
@@ -324,13 +325,32 @@ export function createRouterServer(deps: RouterDeps) {
   }
 
   function handleDashboard(): Response {
+    let currentDir = "";
     try {
-      const htmlPath = resolve(PROJECT_ROOT, "src", "dashboard.html");
-      const html = readFileSync(htmlPath, "utf8");
-      return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
+      currentDir = dirname(fileURLToPath(import.meta.url));
     } catch {
-      return errorResponse(500, "api_error", "Could not load dashboard template.");
+      /* ignore */
     }
+
+    const candidates = [
+      resolve(PROJECT_ROOT, "src", "dashboard.html"),
+      resolve(PROJECT_ROOT, "dashboard.html"),
+      resolve(currentDir, "src", "dashboard.html"),
+      resolve(currentDir, "dashboard.html"),
+      resolve(process.cwd(), "src", "dashboard.html"),
+    ];
+
+    for (const p of candidates) {
+      if (p && existsSync(p)) {
+        try {
+          const html = readFileSync(p, "utf8");
+          return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
+        } catch {
+          /* try next */
+        }
+      }
+    }
+    return errorResponse(500, "api_error", "Could not load dashboard template.");
   }
 
   function handleStats(): Response {

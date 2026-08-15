@@ -1,16 +1,16 @@
 {
   "name": "routecode",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "RouteCode — Zero-latency intelligent OpenRouter failover gateway for Claude Code",
   "type": "module",
-  "main": "index.ts",
-  "module": "index.ts",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
   "bin": {
-    "routecode": "index.ts",
-    "route-code": "index.ts"
+    "routecode": "dist/index.js",
+    "route-code": "dist/index.js"
   },
   "files": [
-    "index.ts",
+    "dist/",
     "src/",
     "README.md"
   ],
@@ -19,6 +19,8 @@
   },
   "scripts": {
     "start": "bun index.ts",
+    "build": "bun build index.ts --target=node --outfile=dist/index.js",
+    "prepublishOnly": "bun run build",
     "dev": "bun --watch index.ts",
     "test": "bun test"
   },

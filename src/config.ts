@@ -4,10 +4,24 @@
  *   settings.json  → API credentials (OpenRouter keys)          [git-ignored]
  *   system.json    → everything else (port, model, failover...)  [tracked]
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 
-export const PROJECT_ROOT = resolve(import.meta.dir, "..");
+const getBaseDir = (): string => {
+  const userConfigDir = resolve(homedir(), ".routecode");
+  if (!existsSync(userConfigDir)) {
+    try {
+      mkdirSync(userConfigDir, { recursive: true });
+    } catch {
+      // Fallback
+    }
+  }
+  return userConfigDir;
+};
+
+export const PROJECT_ROOT = getBaseDir();
 export const SETTINGS_PATH = resolve(PROJECT_ROOT, "settings.json");
 export const SYSTEM_PATH = resolve(PROJECT_ROOT, "system.json");
 
