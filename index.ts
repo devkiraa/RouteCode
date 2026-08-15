@@ -11,6 +11,7 @@
 import { createInterface } from "node:readline";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { exec } from "node:child_process";
 import {
   ensureConfigFiles,
   loadSystem,
@@ -187,6 +188,18 @@ function loadModelsFile(path: string): OpenRouterModel[] {
     .filter((m: OpenRouterModel | null): m is OpenRouterModel => m !== null);
 }
 
+function openBrowser(url: string): void {
+  const startCmd =
+    process.platform === "win32"
+      ? `start "" "${url}"`
+      : process.platform === "darwin"
+        ? `open "${url}"`
+        : `xdg-open "${url}"`;
+  exec(startCmd, () => {
+    /* ignore error */
+  });
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -324,8 +337,10 @@ async function main(): Promise<void> {
   await router.ready;
 
   const actualPort = router.server.port;
+  const dashboardUrl = `http://localhost:${actualPort}/dashboard`;
   console.log(`\n  ✓ Gateway listening on http://127.0.0.1:${actualPort}`);
-  console.log(`  ✓ Dashboard UI available on http://127.0.0.1:${actualPort}/dashboard`);
+  console.log(`  ✓ Dashboard UI available on ${dashboardUrl}`);
+  openBrowser(dashboardUrl);
 
   // 5b) Automatically point Claude Code at the router -------------------------
   if (sys.autoConfigureClaude) {
