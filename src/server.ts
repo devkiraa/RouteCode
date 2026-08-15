@@ -15,7 +15,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PROJECT_ROOT, loadSettings, saveSettings, loadSystem, saveSystem } from "./config";
-import { loadProviders, saveProviders, type ProviderConfig } from "./providers";
+import { loadProviders, saveProviders, getEnabledProviderModels, type ProviderConfig } from "./providers";
 import { anthropicToOpenAIPayload, openAIToAnthropicResponse, transformOpenAiSSEToAnthropic, type AnthropicPayload } from "./openai_translator";
 
 export interface RouterDeps {
@@ -278,16 +278,30 @@ export function createRouterServer(deps: RouterDeps) {
     });
   }
 
+  function getAllAvailableModels(): Array<{ id: string; name?: string }> {
+    const baseModels = deps.getModels();
+    const providerModels = getEnabledProviderModels();
+    const allModels: Array<{ id: string; name?: string }> = [...baseModels];
+    const existingIds = new Set(baseModels.map((m) => m.id));
+
+    for (const pm of providerModels) {
+      if (!existingIds.has(pm.id)) {
+        existingIds.add(pm.id);
+        allModels.push(pm);
+      }
+    }
+    return allModels;
+  }
+
   function handleModels(): Response {
-    const models = deps.getModels();
+    const models = getAllAvailableModels();
     // Claude Code's picker only keeps ids matching /(claude|anthropic)/i, so
-    // non-Claude free models are advertised under a gateway alias
+    // non-Claude models are advertised under a gateway alias
     // (anthropic/claude-route-<base64url>) that the router decodes on requests.
     const advertised = models.map((m) => ({
       id: gatewayIdFor(m.id),
       type: "model",
       display_name: m.name ?? m.id,
-      // Show the real OpenRouter id under the name so the picker stays honest.
       description: m.id,
       created_at: "2025-01-01T00:00:00Z",
     }));
@@ -448,7 +462,7 @@ export function createRouterServer(deps: RouterDeps) {
       roundRobin: sys.roundRobin,
       maxRetries: sys.failover.maxRetries,
       port: sys.port,
-      models: deps.getModels().map((m) => ({ id: m.id, name: m.name ?? m.id })),
+      models: getAllAvailableModels().map((m) => ({ id: m.id, name: m.name ?? m.id })),
     });
   }
 

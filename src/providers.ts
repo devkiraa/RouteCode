@@ -75,3 +75,22 @@ export function loadProviders(): ProviderConfig[] {
 export function saveProviders(providers: ProviderConfig[]): void {
   writeFileSync(PROVIDERS_PATH, JSON.stringify(providers, null, 2) + "\n");
 }
+
+/** Get model definitions from all enabled providers. */
+export function getEnabledProviderModels(): Array<{ id: string; name?: string }> {
+  const providers = loadProviders();
+  const result: Array<{ id: string; name?: string }> = [];
+
+  for (const p of providers) {
+    if (p.enabled && Array.isArray(p.models)) {
+      for (const m of p.models) {
+        result.push({
+          id: m,
+          name: `${m} (${p.name})`,
+        });
+      }
+    }
+  }
+
+  return result;
+}
