@@ -15,7 +15,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PROJECT_ROOT, loadSettings, saveSettings, loadSystem, saveSystem } from "./config";
-import { loadProviders, saveProviders, getEnabledProviderModels, type ProviderConfig } from "./providers";
+import { loadProviders, saveProviders, getEnabledProviderModels, findProviderForModel, type ProviderConfig } from "./providers";
 import { anthropicToOpenAIPayload, openAIToAnthropicResponse, transformOpenAiSSEToAnthropic, type AnthropicPayload } from "./openai_translator";
 
 export interface RouterDeps {
@@ -149,10 +149,8 @@ export function createRouterServer(deps: RouterDeps) {
     );
 
     const allKeyCandidates = deps.keyPool.pickOrder();
-    const providers = loadProviders();
-    const isCustomModel = providers.some(
-      (p) => p.enabled && p.id !== "openrouter" && Array.isArray(p.models) && p.models.some((m) => (typeof m === "string" ? m : m.id) === resolved),
-    );
+    const customMatch = findProviderForModel(resolved);
+    const isCustomModel = !!customMatch;
 
     if (allKeyCandidates.length === 0 && !isCustomModel) {
       return errorResponse(500, "api_error", "No OpenRouter keys configured.");
@@ -184,18 +182,17 @@ export function createRouterServer(deps: RouterDeps) {
         log(`${id} ~ sanitized Anthropic-only tool flags (non-Anthropic model ${candidate})`);
       }
 
-      // Check if candidate belongs to an enabled custom provider (e.g. OpenCode Public, ZCode API)
-      const providers = loadProviders();
-      const matchedProvider = providers.find(
-        (p) => p.enabled && p.id !== "openrouter" && Array.isArray(p.models) && p.models.some((m) => (typeof m === "string" ? m : m.id) === candidate),
-      );
+      // Check if candidate belongs to a custom provider (e.g. OpenCode Public, ZCode API)
+      const matched = findProviderForModel(candidate);
 
-      if (matchedProvider) {
+      if (matched) {
+        const matchedProvider = matched.provider;
+        const targetModelId = matched.rawModelId;
         const started = Date.now();
-        log(`${id} → custom provider "${matchedProvider.name}" for model "${candidate}"`);
+        log(`${id} → custom provider "${matchedProvider.name}" for model "${targetModelId}"`);
         try {
           if (matchedProvider.type === "openai") {
-            const openAiBody = anthropicToOpenAIPayload(forwarded);
+            const openAiBody = anthropicToOpenAIPayload({ ...forwarded, model: targetModelId });
             const openAiHeaders: Record<string, string> = { "content-type": "application/json" };
             if (matchedProvider.keys && matchedProvider.keys.length > 0) {
               openAiHeaders["authorization"] = `Bearer ${matchedProvider.keys[0]}`;
@@ -253,7 +250,7 @@ export function createRouterServer(deps: RouterDeps) {
             const upstream = await fetch(targetUrl, {
               method: "POST",
               headers: anthropicHeaders,
-              body: JSON.stringify(forwarded),
+              body: JSON.stringify({ ...forwarded, model: targetModelId }),
               signal: AbortSignal.timeout(timeoutMs),
             });
 
@@ -420,9 +417,10 @@ export function createRouterServer(deps: RouterDeps) {
   function getSelectedModels(): Array<{ id: string; name?: string; providerId: string; providerName: string }> {
     let models = getAllAvailableModels();
     const sys = loadSystem();
-    if (Array.isArray(sys.enabledModels)) {
+    if (Array.isArray(sys.enabledModels) && sys.enabledModels.length > 0) {
       const allowed = new Set(sys.enabledModels);
-      models = models.filter((m) => allowed.has(m.id));
+      const filtered = models.filter((m) => allowed.has(m.id));
+      if (filtered.length > 0) return filtered;
     }
     return models;
   }

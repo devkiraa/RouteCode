@@ -103,7 +103,7 @@ export interface ProviderModelInfo {
   providerName: string;
 }
 
-/** Get model definitions from all enabled providers. */
+/** Get model definitions from all enabled providers with provider prefix (providerId/modelId). */
 export function getEnabledProviderModels(): ProviderModelInfo[] {
   const providers = loadProviders();
   const result: ProviderModelInfo[] = [];
@@ -111,10 +111,11 @@ export function getEnabledProviderModels(): ProviderModelInfo[] {
   for (const p of providers) {
     if (p.enabled && Array.isArray(p.models)) {
       for (const item of p.models) {
-        const id = typeof item === "string" ? item : item.id;
-        const displayName = typeof item === "object" && item.name ? item.name : id;
+        const rawId = typeof item === "string" ? item : item.id;
+        const displayName = typeof item === "object" && item.name ? item.name : rawId;
+        const fullId = p.id === "openrouter" ? rawId : `${p.id}/${rawId}`;
         result.push({
-          id,
+          id: fullId,
           name: displayName,
           providerId: p.id,
           providerName: p.name,
@@ -124,4 +125,33 @@ export function getEnabledProviderModels(): ProviderModelInfo[] {
   }
 
   return result;
+}
+
+/** Find target provider & raw model id for any requested model string. */
+export function findProviderForModel(modelId: string): { provider: ProviderConfig; rawModelId: string } | null {
+  const providers = loadProviders();
+
+  // 1) Prefix match (e.g. "opencode/deepseek-v4-flash-free" -> provider "opencode", rawModelId "deepseek-v4-flash-free")
+  if (modelId.includes("/")) {
+    const parts = modelId.split("/");
+    const prefix = parts[0];
+    const rawModelId = parts.slice(1).join("/");
+    const p = providers.find((x) => x.id === prefix);
+    if (p && p.id !== "openrouter") return { provider: p, rawModelId };
+  }
+
+  // 2) Exact model list match across all non-openrouter providers
+  for (const p of providers) {
+    if (p.id === "openrouter") continue;
+    if (Array.isArray(p.models)) {
+      for (const m of p.models) {
+        const id = typeof m === "string" ? m : m.id;
+        if (id === modelId || `${p.id}/${id}` === modelId) {
+          return { provider: p, rawModelId: id };
+        }
+      }
+    }
+  }
+
+  return null;
 }
