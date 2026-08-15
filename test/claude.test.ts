@@ -8,7 +8,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { statSync } from "node:fs";
-import { writeClaudeSettings, resolveClaudeSettingsPath, defaultClaudeSettingsPath } from "../src/claude";
+import { writeClaudeSettings, restoreClaudeSettingsDefault, resolveClaudeSettingsPath, defaultClaudeSettingsPath } from "../src/claude";
 
 /** The exact env block writeClaudeSettings produces for port 8080. */
 const ROUTER_ENV = {
@@ -180,5 +180,31 @@ describe("resolveClaudeSettingsPath", () => {
 
   test("resolves relative paths against the base dir", () => {
     expect(resolveClaudeSettingsPath(".claude/settings.json", "/base")).toBe(resolve("/base", ".claude/settings.json"));
+  });
+});
+
+describe("restoreClaudeSettingsDefault", () => {
+  test("strips RouteCode env overrides and leaves non-gateway env vars intact", () => {
+    const target = join(dir, "restore.json");
+    writeFileSync(
+      target,
+      JSON.stringify({
+        theme: "dark",
+        env: {
+          ...ROUTER_ENV,
+          MY_CUSTOM_VAR: "preserve-this",
+        },
+      }),
+    );
+
+    const result = restoreClaudeSettingsDefault(target);
+    expect(result.changed).toBe(true);
+    expect(result.changes).toContain("- env.ANTHROPIC_BASE_URL");
+
+    const parsed = JSON.parse(readFileSync(target, "utf8"));
+    expect(parsed.theme).toBe("dark");
+    expect(parsed.env).toEqual({ MY_CUSTOM_VAR: "preserve-this" });
+    expect(parsed.env.ANTHROPIC_BASE_URL).toBeUndefined();
+    expect(parsed.env.CLAUDE_CODE_USE_GATEWAY).toBeUndefined();
   });
 });

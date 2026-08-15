@@ -14,13 +14,14 @@ import { resolve } from "node:path";
 import {
   ensureConfigFiles,
   loadSystem,
+  saveSettings,
   saveSystem,
   PROJECT_ROOT,
   SETTINGS_PATH,
   SYSTEM_PATH,
   type SystemConfig,
 } from "./src/config";
-import { resolveClaudeSettingsPath, writeClaudeSettings } from "./src/claude";
+import { resolveClaudeSettingsPath, writeClaudeSettings, restoreClaudeSettingsDefault } from "./src/claude";
 import {
   fetchModelListWithKeys,
   isFreeModel,
@@ -54,13 +55,24 @@ interface CliArgs {
   selectModel: boolean;
   port?: number;
   modelsFile?: string;
+  config: boolean;
+  configDefault: boolean;
   help: boolean;
 }
 
 function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { selectModel: false, help: false };
+  const args: CliArgs = { selectModel: false, config: false, configDefault: false, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
+    if (a === "config") {
+      if (argv[i + 1] === "default") {
+        args.configDefault = true;
+        i++;
+      } else {
+        args.config = true;
+      }
+      continue;
+    }
     switch (a) {
       case "--help":
       case "-h":
@@ -68,6 +80,12 @@ function parseArgs(argv: string[]): CliArgs {
         break;
       case "--select-model":
         args.selectModel = true;
+        break;
+      case "--config":
+        args.config = true;
+        break;
+      case "--config-default":
+        args.configDefault = true;
         break;
       case "--model":
       case "-m":
@@ -96,7 +114,8 @@ model shows up in Claude Code's /model picker.
 
 Usage:
   npx routecode                    start RouteCode
-  bun run index.ts                 start locally
+  npx routecode config             route Claude Code through RouteCode (all free models enabled)
+  npx routecode config default     restore Claude Code settings back to default Anthropic
   bun run index.ts --model <id>    force one free model as default override
   bun run index.ts --select-model  open the picker to set that override
   bun run index.ts --port <n>      listen on a different port (default 8080)
@@ -110,13 +129,19 @@ While running, type: models · status · keys · help · quit
 }
 
 function loadModelsFile(path: string): OpenRouterModel[] {
-  const raw = JSON.parse(readFileSync(resolve(PROJECT_ROOT, path), "utf8")) as unknown;
-  const arr = Array.isArray(raw) ? raw : (raw as { data?: unknown[] }).data ?? [];
-  return arr
-    .map((m): OpenRouterModel | null => {
-      if (typeof m === "string") return { id: m };
+  const text = readFileSync(resolve(path), "utf8");
+  const json = JSON.parse(text) as { data?: unknown[] } | unknown[];
+  const array = Array.isArray(json) ? json : Array.isArray((json as any)?.data) ? (json as any).data : [];
+  return array
+    .map((m) => {
       const o = m as Record<string, unknown>;
-      return typeof o.id === "string" ? { id: o.id, name: typeof o.name === "string" ? o.name : undefined } : null;
+      if (!o || typeof o.id !== "string") return null;
+      return {
+        id: o.id,
+        name: typeof o.name === "string" ? o.name : undefined,
+        context_length: typeof o.context_length === "number" ? o.context_length : undefined,
+        pricing: o.pricing as OpenRouterModel["pricing"],
+      };
     })
     .filter((m): m is OpenRouterModel => m !== null);
 }
@@ -128,21 +153,59 @@ async function main(): Promise<void> {
     return;
   }
 
+  const sys: SystemConfig = loadSystem();
+  if (args.port && Number.isInteger(args.port) && args.port > 0) sys.port = args.port;
+
+  // Handle CLI config sub-commands
+  if (args.configDefault) {
+    const targetPath = resolveClaudeSettingsPath(sys.claudeSettingsPath);
+    const res = restoreClaudeSettingsDefault(targetPath);
+    console.log(`\n  \x1b[32m✓ Claude Code settings restored to default Anthropic configuration.\x1b[0m`);
+    console.log(`    Target file: ${res.path}\n`);
+    return;
+  }
+
+  if (args.config) {
+    const targetPath = resolveClaudeSettingsPath(sys.claudeSettingsPath);
+    const res = writeClaudeSettings(targetPath, sys.port);
+    console.log(`\n  \x1b[32m✓ Claude Code configured to route through RouteCode!\x1b[0m`);
+    console.log(`    Target file: ${res.path}`);
+    console.log(`    Gateway URL: http://127.0.0.1:${sys.port}`);
+    console.log(`    All free OpenRouter models are now listed in Claude Code's /model picker.\n`);
+    return;
+  }
+
   await animateBanner();
 
   // 1) Credentials ----------------------------------------------------------
   const settings = ensureConfigFiles();
-  const keys = settings.openrouterKeys.filter((k) => k.trim() && !k.includes("REPLACE"));
+  let keys = settings.openrouterKeys.filter((k) => k.trim() && !k.includes("REPLACE"));
+
   if (keys.length === 0) {
-    console.error("\n  ✗ No OpenRouter keys configured.");
-    console.error('    Open settings.json and add your keys under "openrouterKeys" — one per account.');
-    console.error("    Example: [\"sk-or-v1-xxx\", \"sk-or-v1-yyy\"]\n");
-    process.exit(1);
+    console.log(`\n  \x1b[33m⚠ No OpenRouter API key found in settings.json!\x1b[0m`);
+    console.log(`  OpenRouter keys are 100% free and instant to create.`);
+    console.log(`  Get your API key at: \x1b[36mhttps://openrouter.ai/keys\x1b[0m\n`);
+
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const userKey = await new Promise<string>((res) => {
+      rl.question("  Paste your OpenRouter API key (sk-or-v1-...): ", (ans) => {
+        rl.close();
+        res(ans.trim());
+      });
+    });
+
+    if (userKey) {
+      settings.openrouterKeys = [userKey];
+      saveSettings(settings);
+      keys = [userKey];
+      console.log(`\n  \x1b[32m✓ Key saved to settings.json! Starting RouteCode...\x1b[0m`);
+    } else {
+      console.error("\n  ✗ No key entered. Exiting RouteCode.\n");
+      process.exit(1);
+    }
   }
 
   // 2) System config --------------------------------------------------------
-  const sys: SystemConfig = loadSystem();
-  if (args.port && Number.isInteger(args.port) && args.port > 0) sys.port = args.port;
   console.log(`\n  Accounts : ${keys.length} OpenRouter key${keys.length === 1 ? "" : "s"} loaded from settings.json`);
 
   // 3) Model catalog — free models only --------------------------------------

@@ -132,3 +132,62 @@ export function writeClaudeSettings(path: string, port: number): ClaudeSettingsR
 
   return { path, changed: true, changes };
 }
+
+/**
+ * Remove RouteCode gateway env overrides from Claude Code settings file,
+ * restoring default Anthropic configuration.
+ */
+export function restoreClaudeSettingsDefault(path: string): ClaudeSettingsResult {
+  let existing: Record<string, unknown> = {};
+  if (existsSync(path)) {
+    try {
+      const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        existing = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Malformed file — ignore
+    }
+  }
+
+  const currentEnv =
+    existing.env && typeof existing.env === "object" && !Array.isArray(existing.env)
+      ? (existing.env as Record<string, unknown>)
+      : {};
+
+  const keysToRemove = [
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_API_BASE_URL",
+    "CLAUDE_AGENT_API_BASE_URL",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "CLAUDE_CODE_USE_GATEWAY",
+    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY",
+    "ENABLE_TOOL_SEARCH",
+    "CCR_CLAUDE_CODE_MODEL",
+    "CODEXL_CLAUDE_CODE_MODEL",
+  ];
+
+  const changes: string[] = [];
+  for (const k of keysToRemove) {
+    if (k in currentEnv) {
+      delete currentEnv[k];
+      changes.push(`- env.${k}`);
+    }
+  }
+
+  if (Object.keys(currentEnv).length === 0) {
+    delete existing.env;
+  } else {
+    existing.env = currentEnv;
+  }
+
+  if (changes.length === 0) {
+    return { path, changed: false, changes };
+  }
+
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(existing, null, 2) + "\n");
+
+  return { path, changed: true, changes };
+}
