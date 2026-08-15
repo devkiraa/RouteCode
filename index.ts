@@ -481,8 +481,7 @@ async function main(): Promise<void> {
       }
       case "quit":
       case "exit":
-        console.log("  Bye.");
-        process.exit(0);
+        await gracefulShutdown("command");
         break;
       default:
         if (raw.trim()) console.log('  Unknown command — type "help".');
@@ -490,11 +489,38 @@ async function main(): Promise<void> {
     }
   }
 
-  process.stdout.write("router> ");
-  process.on("SIGINT", () => {
-    console.log("\n  Bye.");
+  let shuttingDown = false;
+  async function gracefulShutdown(reason: string) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`\n  Shutting down RouteCode (${reason})…`);
+    try {
+      if (state.model !== undefined) {
+        sys.defaultModel = state.model;
+      }
+      saveSystem(sys);
+      saveProviders(loadProviders());
+      console.log("  ✓ Models catalog, provider settings, and router configuration saved.");
+    } catch (err) {
+      console.log(`  ⚠ Could not save state on exit: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    try {
+      router.server.stop(true);
+      console.log("  ✓ Gateway server stopped cleanly.");
+    } catch {
+      /* ignore */
+    }
+
+    rl.close();
+    console.log("  Bye!\n");
     process.exit(0);
-  });
+  }
+
+  process.stdout.write("router> ");
+  process.on("SIGINT", () => void gracefulShutdown("Ctrl+C"));
+  process.on("SIGTERM", () => void gracefulShutdown("SIGTERM"));
+  process.on("SIGHUP", () => void gracefulShutdown("SIGHUP"));
 }
 
 main().catch((err) => {
