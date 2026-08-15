@@ -1,6 +1,6 @@
 {
   "name": "routecode",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "RouteCode — Zero-latency intelligent OpenRouter failover gateway for Claude Code",
   "type": "module",
   "main": "dist/index.js",
