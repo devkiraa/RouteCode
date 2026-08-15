@@ -141,13 +141,20 @@ export function createRouterServer(deps: RouterDeps) {
     // Model-level failover: a 404 (dead/unsupported model) or 429 (free-tier
     // rate limit) means this model can't serve the request, so the router retries
     // with the next candidate free model (resolved → default → first free).
+    const allAvailableIds = getAllAvailableModels().map((m) => m.id);
     const candidates = fallbackModelCandidates(
       resolved,
-      deps.getModels().map((m) => m.id),
+      allAvailableIds,
       deps.getDefaultModel(),
     );
+
     const allKeyCandidates = deps.keyPool.pickOrder();
-    if (allKeyCandidates.length === 0) {
+    const providers = loadProviders();
+    const isCustomModel = providers.some(
+      (p) => p.enabled && p.id !== "openrouter" && Array.isArray(p.models) && p.models.some((m) => (typeof m === "string" ? m : m.id) === resolved),
+    );
+
+    if (allKeyCandidates.length === 0 && !isCustomModel) {
       return errorResponse(500, "api_error", "No OpenRouter keys configured.");
     }
 
@@ -175,6 +182,112 @@ export function createRouterServer(deps: RouterDeps) {
       const forwarded = sanitizeToolsForModel(rewritten, candidate);
       if (forwarded !== rewritten) {
         log(`${id} ~ sanitized Anthropic-only tool flags (non-Anthropic model ${candidate})`);
+      }
+
+      // Check if candidate belongs to an enabled custom provider (e.g. OpenCode Public, ZCode API)
+      const providers = loadProviders();
+      const matchedProvider = providers.find(
+        (p) => p.enabled && p.id !== "openrouter" && Array.isArray(p.models) && p.models.some((m) => (typeof m === "string" ? m : m.id) === candidate),
+      );
+
+      if (matchedProvider) {
+        const started = Date.now();
+        log(`${id} → custom provider "${matchedProvider.name}" for model "${candidate}"`);
+        try {
+          if (matchedProvider.type === "openai") {
+            const openAiBody = anthropicToOpenAIPayload(forwarded);
+            const openAiHeaders: Record<string, string> = { "content-type": "application/json" };
+            if (matchedProvider.keys && matchedProvider.keys.length > 0) {
+              openAiHeaders["authorization"] = `Bearer ${matchedProvider.keys[0]}`;
+            }
+            const targetUrl = `${matchedProvider.baseUrl.replace(/\/+$/, "")}/chat/completions`;
+            const upstream = await fetch(targetUrl, {
+              method: "POST",
+              headers: openAiHeaders,
+              body: JSON.stringify(openAiBody),
+              signal: AbortSignal.timeout(timeoutMs),
+            });
+
+            const duration = Date.now() - started;
+            if (upstream.ok) {
+              globalTelemetry.recordRequest({
+                id,
+                timestamp: new Date().toISOString(),
+                requestedModel: requested,
+                resolvedModel: candidate,
+                keyLabel: matchedProvider.name,
+                status: upstream.status,
+                latencyMs: duration,
+                retried: false,
+              });
+
+              if (forwarded.stream) {
+                const transformedStream = transformOpenAiSSEToAnthropic(upstream.body, candidate);
+                log(`${id} → ${matchedProvider.name}: ${upstream.status} (SSE stream) in ${duration}ms ✓`);
+                return new Response(transformedStream, {
+                  status: 200,
+                  headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache" },
+                });
+              } else {
+                const openAiJson = await upstream.json();
+                const anthropicResponse = openAIToAnthropicResponse(openAiJson, candidate);
+                log(`${id} → ${matchedProvider.name}: ${upstream.status} in ${duration}ms ✓`);
+                return Response.json(anthropicResponse);
+              }
+            } else {
+              const errText = await upstream.text();
+              if (lastStatus === 502) {
+                lastStatus = upstream.status;
+                lastBody = errText;
+              }
+              log(`${id} ✗ ${matchedProvider.name}: status ${upstream.status} — ${errText.slice(0, 150)}`);
+              continue;
+            }
+          } else {
+            // Anthropic format (e.g. ZCode API)
+            const anthropicHeaders: Record<string, string> = { "content-type": "application/json" };
+            if (matchedProvider.keys && matchedProvider.keys.length > 0) {
+              anthropicHeaders["x-api-key"] = matchedProvider.keys[0];
+            }
+            const targetUrl = `${matchedProvider.baseUrl.replace(/\/+$/, "")}${path}`;
+            const upstream = await fetch(targetUrl, {
+              method: "POST",
+              headers: anthropicHeaders,
+              body: JSON.stringify(forwarded),
+              signal: AbortSignal.timeout(timeoutMs),
+            });
+
+            const duration = Date.now() - started;
+            if (upstream.ok) {
+              globalTelemetry.recordRequest({
+                id,
+                timestamp: new Date().toISOString(),
+                requestedModel: requested,
+                resolvedModel: candidate,
+                keyLabel: matchedProvider.name,
+                status: upstream.status,
+                latencyMs: duration,
+                retried: false,
+              });
+              log(`${id} → ${matchedProvider.name}: ${upstream.status} in ${duration}ms ✓`);
+              return new Response(upstream.body, { status: upstream.status, headers: upstream.headers });
+            } else {
+              const errText = await upstream.text();
+              if (lastStatus === 502) {
+                lastStatus = upstream.status;
+                lastBody = errText;
+              }
+              log(`${id} ✗ ${matchedProvider.name}: status ${upstream.status} — ${errText.slice(0, 150)}`);
+              continue;
+            }
+          }
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          log(`${id} ✗ ${matchedProvider.name} error: ${reason}`);
+          lastStatus = 502;
+          lastBody = JSON.stringify({ error: { type: "api_error", message: reason } });
+          continue;
+        }
       }
 
       for (const key of effectiveAttempts) {

@@ -117,9 +117,14 @@ export function resolveFreeModel(
   freeIds: string[],
   defaultModel: string | null,
 ): string | null {
-  if (freeIds.length === 0) return null;
-  if (!requested) return defaultModel ?? freeIds[0];
+  if (freeIds.length === 0 && !defaultModel) return null;
+  if (!requested) return defaultModel ?? freeIds[0] ?? null;
   if (freeIds.includes(requested)) return requested;
+
+  // Check if requested matches a gateway alias
+  const aliasMatch = freeIds.find((id) => gatewayIdFor(id) === requested);
+  if (aliasMatch) return requested;
+
   if (defaultModel) return defaultModel;
 
   const lower = requested.toLowerCase();
@@ -128,7 +133,7 @@ export function resolveFreeModel(
     const match = freeIds.find((id) => klass.test(id));
     if (match) return match;
   }
-  return freeIds[0];
+  return freeIds[0] ?? null;
 }
 
 /**
