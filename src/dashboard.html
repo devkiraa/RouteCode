@@ -513,6 +513,23 @@
       </div>
     </div>
 
+    <!-- Upstream Model Providers Section -->
+    <div class="section-card">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Upstream Model Providers & Custom APIs</div>
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Connect OpenRouter, ZCode API (Anthropic format), OpenCode Public (OpenAI format), or custom endpoints.</p>
+        </div>
+        <button class="btn btn-primary" onclick="toggleAddProviderModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Add Custom Provider
+        </button>
+      </div>
+      <div id="providers-list-container" style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="text-align: center; padding: 16px; color: var(--text-muted);">Loading providers...</div>
+      </div>
+    </div>
+
     <!-- Router Configuration Section -->
     <div class="section-card">
       <div class="section-header">
@@ -966,12 +983,80 @@
       }).join('');
     }
 
+    let providerList = [];
+
+    async function fetchProviders() {
+      try {
+        const res = await fetch('/api/providers');
+        if (!res.ok) return;
+        const data = await res.json();
+        providerList = data.providers || [];
+        renderProviders();
+      } catch (e) {
+        console.error('Failed to fetch providers:', e);
+      }
+    }
+
+    function renderProviders() {
+      const container = document.getElementById('providers-list-container');
+      if (!container) return;
+
+      if (providerList.length === 0) {
+        container.innerHTML = `<div style="text-align: center; padding: 16px; color: var(--text-muted);">No providers configured.</div>`;
+        return;
+      }
+
+      container.innerHTML = providerList.map((p) => {
+        const typeBadge = p.type === 'openai' ? 'OpenAI Chat' : 'Anthropic Messages';
+        return `
+          <div style="border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 18px; background-color: var(--card-bg); display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="width: 32px; height: 32px; background: var(--primary-subtle); color: var(--primary); font-weight: 800; border-radius: 6px; display: flex; align-items: center; justify-content: center;">
+                ${p.name.slice(0, 1).toUpperCase()}
+              </div>
+              <div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-weight: 700; font-size: 14px;">${p.name}</span>
+                  <span style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 9999px; background: var(--bg); border: 1px solid var(--border); color: var(--text-muted);">${typeBadge}</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">${p.baseUrl}</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 14px;">
+              <span style="font-size: 12px; font-weight: 600; color: ${p.enabled ? 'var(--success)' : 'var(--text-muted)'};">
+                ${p.enabled ? 'Enabled' : 'Disabled'}
+              </span>
+              <input type="checkbox" ${p.enabled ? 'checked' : ''} onchange="toggleProviderEnabled('${p.id}', this.checked)" style="cursor: pointer; width: 18px; height: 18px;">
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function toggleProviderEnabled(id, isEnabled) {
+      const p = providerList.find((x) => x.id === id);
+      if (!p) return;
+      p.enabled = isEnabled;
+      try {
+        await fetch('/api/providers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ providers: providerList }),
+        });
+        fetchProviders();
+      } catch (e) {
+        console.error('Failed to update provider:', e);
+      }
+    }
+
     // Initial load + poll
     fetchConfig();
     fetchKeys();
+    fetchProviders();
     fetchStats();
     setInterval(() => {
       fetchKeys();
+      fetchProviders();
       fetchStats();
     }, 1000);
   </script>

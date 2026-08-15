@@ -15,6 +15,8 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PROJECT_ROOT, loadSettings, saveSettings, loadSystem, saveSystem } from "./config";
+import { loadProviders, saveProviders, type ProviderConfig } from "./providers";
+import { anthropicToOpenAIPayload, openAIToAnthropicResponse, transformOpenAiSSEToAnthropic, type AnthropicPayload } from "./openai_translator";
 
 export interface RouterDeps {
   port: number;
@@ -470,6 +472,24 @@ export function createRouterServer(deps: RouterDeps) {
     }
   }
 
+  function handleGetProviders(): Response {
+    return Response.json({ providers: loadProviders() });
+  }
+
+  async function handleUpdateProviders(req: Request): Promise<Response> {
+    try {
+      const body = (await req.json()) as { providers?: ProviderConfig[] };
+      if (!Array.isArray(body?.providers)) {
+        return errorResponse(400, "invalid_request", "Providers array required.");
+      }
+      saveProviders(body.providers);
+      log(`Updated providers registry (${body.providers.length} configured)`);
+      return handleGetProviders();
+    } catch {
+      return errorResponse(400, "invalid_request", "Invalid JSON payload.");
+    }
+  }
+
   function handleIndex(): Response {
     const model = deps.getDefaultModel();
     return new Response(
@@ -538,6 +558,8 @@ export function createRouterServer(deps: RouterDeps) {
     if (req.method === "GET" && path === "/api/keys") return handleGetKeys();
     if (req.method === "POST" && path === "/api/keys") return handleAddKey(req);
     if (req.method === "DELETE" && path === "/api/keys") return handleDeleteKey(req);
+    if (req.method === "GET" && path === "/api/providers") return handleGetProviders();
+    if (req.method === "POST" && path === "/api/providers") return handleUpdateProviders(req);
     if (req.method === "GET" && (path === "/" || path === "")) return handleIndex();
 
     return errorResponse(404, "not_found", `Not found: ${req.method} ${path}`);
