@@ -277,7 +277,12 @@
           <div class="section-title">Available Models Catalog</div>
           <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">All active models across OpenRouter, ZCode API, OpenCode Public, and Custom Providers (available in Claude Code's /model picker).</p>
         </div>
-        <input type="text" id="model-search" class="input-field" style="width: 240px;" placeholder="Search models..." oninput="renderModels()">
+        <div style="display: flex; gap: 12px; align-items: center;">
+          <select id="provider-filter-select" class="select-input" style="width: 180px;" onchange="renderModels()">
+            <option value="">All Providers</option>
+          </select>
+          <input type="text" id="model-search" class="input-field" style="width: 220px;" placeholder="Search models..." oninput="renderModels()">
+        </div>
       </div>
 
       <div id="models-grid-container" class="models-grid">
@@ -306,9 +311,30 @@
         const configData = await resConfig.json();
         allModels = configData.models || [];
 
+        // Build Provider Filter options
+        const providerSet = new Set(allModels.map(m => m.providerName || 'OpenRouter Free'));
+        const providerFilter = document.getElementById('provider-filter-select');
+        providerFilter.innerHTML = '<option value="">All Providers</option>' +
+          Array.from(providerSet).map(p => `<option value="${p}">${p}</option>`).join('');
+
+        // Build Grouped Default Model Override select (<optgroup>)
+        const grouped = {};
+        for (const m of allModels) {
+          const pname = m.providerName || 'OpenRouter Free';
+          if (!grouped[pname]) grouped[pname] = [];
+          grouped[pname].push(m);
+        }
+
         const select = document.getElementById('default-model-select');
-        select.innerHTML = '<option value="">Auto (Claude Code picks from catalog)</option>' +
-          allModels.map(m => `<option value="${m.id}">${m.name || m.id}</option>`).join('');
+        let selectHtml = '<option value="">Auto (Claude Code picks from catalog)</option>';
+        for (const [pname, list] of Object.entries(grouped)) {
+          selectHtml += `<optgroup label="${pname}">`;
+          for (const m of list) {
+            selectHtml += `<option value="${m.id}">${m.name || m.id}</option>`;
+          }
+          selectHtml += `</optgroup>`;
+        }
+        select.innerHTML = selectHtml;
         select.value = configData.defaultModel || '';
 
         renderModels();
@@ -334,12 +360,14 @@
 
     function renderModels() {
       const query = (document.getElementById('model-search').value || '').toLowerCase();
+      const selectedProvider = document.getElementById('provider-filter-select').value;
       const container = document.getElementById('models-grid-container');
 
-      const filtered = allModels.filter(m => 
-        (m.name || '').toLowerCase().includes(query) ||
-        m.id.toLowerCase().includes(query)
-      );
+      const filtered = allModels.filter(m => {
+        const matchesQuery = (m.name || '').toLowerCase().includes(query) || m.id.toLowerCase().includes(query);
+        const matchesProvider = !selectedProvider || (m.providerName || 'OpenRouter Free') === selectedProvider;
+        return matchesQuery && matchesProvider;
+      });
 
       if (filtered.length === 0) {
         container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 32px; color: var(--text-muted);">No models match your search query.</div>`;
@@ -347,10 +375,7 @@
       }
 
       container.innerHTML = filtered.map(m => {
-        let providerTag = 'OpenRouter Free';
-        if (m.id.includes('zcode')) providerTag = 'ZCode API';
-        else if (m.id.includes('opencode')) providerTag = 'OpenCode Public';
-
+        const providerTag = m.providerName || 'OpenRouter Free';
         return `
           <div class="model-card">
             <div>

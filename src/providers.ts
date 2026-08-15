@@ -36,7 +36,7 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
     baseUrl: "https://zcode.z.ai/api/v1/zcode-plan/anthropic",
     enabled: false,
     keys: [],
-    models: ["zcode-pro", "zcode-lite"],
+    models: ["zcode-pro", "zcode-lite", "zcode-claude-3-5-sonnet", "zcode-deepseek-r1"],
   },
   {
     id: "opencode",
@@ -45,7 +45,7 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
     baseUrl: "https://opencode.ai/zen/v1",
     enabled: false,
     keys: [],
-    models: ["opencode-zen", "opencode-mini"],
+    models: ["opencode-zen", "opencode-mini", "opencode-deepseek-r1", "opencode-gpt-4o"],
   },
 ];
 
@@ -76,10 +76,17 @@ export function saveProviders(providers: ProviderConfig[]): void {
   writeFileSync(PROVIDERS_PATH, JSON.stringify(providers, null, 2) + "\n");
 }
 
+export interface ProviderModelInfo {
+  id: string;
+  name?: string;
+  providerId: string;
+  providerName: string;
+}
+
 /** Get model definitions from all enabled providers. */
-export function getEnabledProviderModels(): Array<{ id: string; name?: string }> {
+export function getEnabledProviderModels(): ProviderModelInfo[] {
   const providers = loadProviders();
-  const result: Array<{ id: string; name?: string }> = [];
+  const result: ProviderModelInfo[] = [];
 
   for (const p of providers) {
     if (p.enabled && Array.isArray(p.models)) {
@@ -87,6 +94,8 @@ export function getEnabledProviderModels(): Array<{ id: string; name?: string }>
         result.push({
           id: m,
           name: `${m} (${p.name})`,
+          providerId: p.id,
+          providerName: p.name,
         });
       }
     }

@@ -278,16 +278,27 @@ export function createRouterServer(deps: RouterDeps) {
     });
   }
 
-  function getAllAvailableModels(): Array<{ id: string; name?: string }> {
+  function getAllAvailableModels(): Array<{ id: string; name?: string; providerId: string; providerName: string }> {
     const baseModels = deps.getModels();
     const providerModels = getEnabledProviderModels();
-    const allModels: Array<{ id: string; name?: string }> = [...baseModels];
+    const allModels: Array<{ id: string; name?: string; providerId: string; providerName: string }> = baseModels.map((m) => ({
+      id: m.id,
+      name: m.name ?? m.id,
+      providerId: "openrouter",
+      providerName: "OpenRouter Free",
+    }));
+
     const existingIds = new Set(baseModels.map((m) => m.id));
 
     for (const pm of providerModels) {
       if (!existingIds.has(pm.id)) {
         existingIds.add(pm.id);
-        allModels.push(pm);
+        allModels.push({
+          id: pm.id,
+          name: pm.name ?? pm.id,
+          providerId: pm.providerId,
+          providerName: pm.providerName,
+        });
       }
     }
     return allModels;
@@ -462,7 +473,12 @@ export function createRouterServer(deps: RouterDeps) {
       roundRobin: sys.roundRobin,
       maxRetries: sys.failover.maxRetries,
       port: sys.port,
-      models: getAllAvailableModels().map((m) => ({ id: m.id, name: m.name ?? m.id })),
+      models: getAllAvailableModels().map((m) => ({
+        id: m.id,
+        name: m.name ?? m.id,
+        providerId: m.providerId,
+        providerName: m.providerName,
+      })),
     });
   }
 
