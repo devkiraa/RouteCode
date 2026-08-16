@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { PROJECT_ROOT, loadSettings, saveSettings, loadSystem, saveSystem } from "./config";
 import { loadProviders, saveProviders, syncProviderModels, getEnabledProviderModels, findProviderForModel, selectProviderKey, recordProviderKeyFailure, getProviderKeyRpm, testProviderKey, type ProviderConfig } from "./providers";
 import { anthropicToOpenAIPayload, openAIToAnthropicResponse, transformOpenAiSSEToAnthropic, type AnthropicPayload } from "./openai_translator";
+import { loadMemory, saveMemory, injectMemoryIntoSystem } from "./memory";
 
 export interface RouterDeps {
   port: number;
@@ -174,6 +175,13 @@ export function createRouterServer(deps: RouterDeps) {
     });
     let triedFallback = false;
 
+    const memoryInjectedPayload = {
+      ...payload,
+      system: injectMemoryIntoSystem(payload.system),
+    };
+    const promptText = JSON.stringify(memoryInjectedPayload.messages || "") + JSON.stringify(memoryInjectedPayload.system || "");
+    const estimatedInputTokens = Math.max(10, Math.round(promptText.length / 3.8));
+
     for (let ci = 0; ci < candidates.length; ci++) {
       const candidate = candidates[ci];
 
@@ -184,7 +192,7 @@ export function createRouterServer(deps: RouterDeps) {
       const effectiveAttempts = deps.maxRetries > 0 ? attempts.slice(0, deps.maxRetries) : attempts;
 
       // Pass through when the client already picked this model; otherwise rewrite.
-      const rewritten = requested !== null && requested === candidate ? payload : { ...payload, model: candidate };
+      const rewritten = requested !== null && requested === candidate ? memoryInjectedPayload : { ...memoryInjectedPayload, model: candidate };
       if (rewritten !== payload) {
         log(`${id} ~ model "${requested}" → ${candidate}`);
       }
@@ -239,6 +247,8 @@ export function createRouterServer(deps: RouterDeps) {
                 status: upstream.status,
                 latencyMs: duration,
                 retried: triedFallback,
+                inputTokens: estimatedInputTokens,
+                outputTokens: 350,
               });
 
               if (forwarded.stream) {
@@ -299,6 +309,8 @@ export function createRouterServer(deps: RouterDeps) {
                 status: upstream.status,
                 latencyMs: duration,
                 retried: triedFallback,
+                inputTokens: estimatedInputTokens,
+                outputTokens: 350,
               });
               log(`${id} → ${matchedProvider.name}: ${upstream.status} in ${duration}ms ✓`);
               return new Response(upstream.body, { status: upstream.status, headers: upstream.headers });
@@ -355,6 +367,8 @@ export function createRouterServer(deps: RouterDeps) {
               status: upstream.status,
               latencyMs: duration,
               retried: triedFallback || key !== effectiveAttempts[0],
+              inputTokens: estimatedInputTokens,
+              outputTokens: 350,
             });
             const headers = new Headers();
             for (const [h, v] of upstream.headers) {
@@ -919,6 +933,20 @@ export function createRouterServer(deps: RouterDeps) {
     if (req.method === "GET" && path === "/dashboard") return handleDashboard();
     if (req.method === "GET" && path === "/models") return handleModelsPage();
     if (req.method === "GET" && path === "/logs") return handleLogsPage();
+    if (req.method === "GET" && path === "/api/memory") {
+      return Response.json(loadMemory());
+    }
+
+    if (req.method === "POST" && path === "/api/memory") {
+      try {
+        const body = await req.json();
+        const updated = saveMemory(body);
+        return Response.json({ ok: true, memory: updated });
+      } catch (err: any) {
+        return errorResponse(400, "invalid_request", err?.message || "Invalid memory payload");
+      }
+    }
+
     if (req.method === "GET" && path === "/api/stats") return handleStats();
     if (req.method === "GET" && path === "/api/config") return handleGetConfig();
     if (req.method === "POST" && path === "/api/config") return handleUpdateConfig(req);

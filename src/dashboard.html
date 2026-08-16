@@ -495,7 +495,7 @@
     </header>
 
     <!-- Metrics Overview -->
-    <div class="metrics-grid">
+    <div class="metrics-grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
       <div class="metric-card">
         <div class="metric-title">Gateway Uptime</div>
         <div class="metric-value" id="val-uptime">0s</div>
@@ -515,6 +515,16 @@
         <div class="metric-title">Total Requests</div>
         <div class="metric-value" id="val-requests">0</div>
         <div class="metric-sub" id="val-avg-latency">Avg Latency: 0ms</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Total Tokens Used</div>
+        <div class="metric-value" id="val-tokens">0</div>
+        <div class="metric-sub" id="val-tokens-sub">In: 0 | Out: 0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-title">Estimated API Cost ($)</div>
+        <div class="metric-value" id="val-cost" style="color: var(--primary);">$0.00</div>
+        <div class="metric-sub" id="val-savings" style="color: var(--success); font-weight: 700;">Savings: $0.00</div>
       </div>
     </div>
 
@@ -578,9 +588,39 @@
 
       <!-- Right Column: Model Stats -->
       <div style="display: flex; flex-direction: column; gap: 24px;">
+        <!-- Smart Project Memory Card -->
         <div class="section-card">
           <div class="section-header">
-            <div class="section-title">Model Performance</div>
+            <div>
+              <div class="section-title">Smart Project Memory & Context Intelligence</div>
+              <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Persistent project rules and context automatically injected into system prompts across all providers.</p>
+            </div>
+            <button class="btn btn-primary" id="btn-save-memory" onclick="saveMemoryUI()">
+              Save Memory
+            </button>
+          </div>
+          <div id="memory-status" style="display: none; padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 14px; font-size: 12px; font-weight: 600;"></div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+            <div>
+              <label style="font-size: 12px; font-weight: 700; color: var(--text-secondary); display: block; margin-bottom: 6px;">Project Rules (one per line):</label>
+              <textarea id="mem-rules" class="input-field" style="width: 100%; height: 90px; font-size: 12px; font-family: inherit;" placeholder="Keep responses concise.&#10;Prioritize clean code with strict type safety."></textarea>
+            </div>
+            <div>
+              <label style="font-size: 12px; font-weight: 700; color: var(--text-secondary); display: block; margin-bottom: 6px;">Tech Stack (comma separated):</label>
+              <input type="text" id="mem-stack" class="input-field" style="width: 100%; font-size: 12px;" placeholder="Bun, TypeScript, Hono, Next.js">
+              <label style="font-size: 12px; font-weight: 700; color: var(--text-secondary); display: block; margin-top: 10px; margin-bottom: 6px;">User Preferences (comma separated):</label>
+              <input type="text" id="mem-prefs" class="input-field" style="width: 100%; font-size: 12px;" placeholder="Terse caveman responses, Light theme UI">
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label style="font-size: 12px; font-weight: 700; color: var(--text-secondary); display: block; margin-bottom: 6px;">Custom Project Notes:</label>
+              <textarea id="mem-notes" class="input-field" style="width: 100%; height: 60px; font-size: 12px;" placeholder="Add custom context notes or architectural guidelines here..."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">Model Performance & API Cost Analytics</div>
           </div>
           <div class="table-container">
             <table>
@@ -590,10 +630,12 @@
                   <th>Reqs</th>
                   <th>Success</th>
                   <th>Avg (ms)</th>
+                  <th>Tokens (In / Out)</th>
+                  <th>Est. Cost ($)</th>
                 </tr>
               </thead>
               <tbody id="models-tbody">
-                <tr><td colspan="4" style="text-align: center; padding: 24px; color: var(--text-muted);">No usage data yet.</td></tr>
+                <tr><td colspan="6" style="text-align: center; padding: 24px; color: var(--text-muted);">No usage data yet.</td></tr>
               </tbody>
             </table>
           </div>
@@ -955,6 +997,14 @@
         : 0;
       document.getElementById('val-avg-latency').textContent = `Avg Latency: ${avgLat}ms`;
 
+      // Token & Cost Telemetry Totals
+      const totals = data.totals || { totalTokens: 0, totalInputTokens: 0, totalOutputTokens: 0, totalCostUsd: 0, totalSavingsUsd: 0 };
+      document.getElementById('val-tokens').textContent = (totals.totalTokens || 0).toLocaleString();
+      document.getElementById('val-tokens-sub').textContent = `In: ${(totals.totalInputTokens || 0).toLocaleString()} | Out: ${(totals.totalOutputTokens || 0).toLocaleString()}`;
+      
+      document.getElementById('val-cost').textContent = `$${(totals.totalCostUsd || 0).toFixed(4)}`;
+      document.getElementById('val-savings').textContent = `Savings: $${(totals.totalSavingsUsd || 0).toFixed(4)}`;
+
       renderCloudflareChart(data.latencyHistory || []);
       renderModelStats(data.modelStats || {});
     }
@@ -1198,6 +1248,7 @@
     fetchKeys();
     fetchProviders();
     fetchStats();
+    fetchMemoryUI();
     setInterval(() => {
       fetchKeys();
       fetchProviders();
