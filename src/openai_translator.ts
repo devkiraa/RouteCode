@@ -73,19 +73,69 @@ export function anthropicToOpenAIPayload(payload: AnthropicPayload): OpenAIPaylo
   // Convert turns
   if (Array.isArray(payload.messages)) {
     for (const msg of payload.messages) {
-      let contentStr = "";
       if (typeof msg.content === "string") {
-        contentStr = msg.content;
+        openAiMessages.push({
+          role: msg.role === "assistant" ? "assistant" : "user",
+          content: msg.content,
+        });
       } else if (Array.isArray(msg.content)) {
-        contentStr = msg.content
-          .map((c) => (typeof c === "string" ? c : c.text || ""))
-          .filter(Boolean)
-          .join("\n");
+        if (msg.role === "assistant") {
+          let textContent = "";
+          const openAiToolCalls: any[] = [];
+
+          for (const item of msg.content) {
+            if (typeof item === "string") {
+              textContent += item;
+            } else if (item.type === "text") {
+              textContent += item.text || "";
+            } else if (item.type === "tool_use") {
+              openAiToolCalls.push({
+                id: item.id || `toolu_${Math.random().toString(36).slice(2, 10)}`,
+                type: "function",
+                function: {
+                  name: item.name,
+                  arguments: JSON.stringify(item.input || {}),
+                },
+              });
+            }
+          }
+
+          const assistantMsg: any = {
+            role: "assistant",
+            content: textContent || null,
+          };
+          if (openAiToolCalls.length > 0) {
+            assistantMsg.tool_calls = openAiToolCalls;
+          }
+          openAiMessages.push(assistantMsg);
+        } else {
+          // User or Tool Result turn
+          for (const item of msg.content) {
+            if (typeof item === "string") {
+              openAiMessages.push({ role: "user", content: item });
+            } else if (item.type === "text") {
+              openAiMessages.push({ role: "user", content: item.text || "" });
+            } else if (item.type === "tool_result") {
+              let resContent = "";
+              if (typeof item.content === "string") {
+                resContent = item.content;
+              } else if (Array.isArray(item.content)) {
+                resContent = item.content
+                  .map((c: any) => (typeof c === "string" ? c : c.text || JSON.stringify(c)))
+                  .join("\n");
+              } else if (item.content) {
+                resContent = JSON.stringify(item.content);
+              }
+
+              openAiMessages.push({
+                role: "tool",
+                tool_call_id: item.tool_use_id || "toolu_unknown",
+                content: resContent || "(empty result)",
+              } as any);
+            }
+          }
+        }
       }
-      openAiMessages.push({
-        role: msg.role === "assistant" ? "assistant" : "user",
-        content: contentStr,
-      });
     }
   }
 
