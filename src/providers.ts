@@ -43,16 +43,7 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
     enabled: false,
     keys: [],
     rpmLimit: 40,
-    models: [
-      { id: "meta/llama-3.3-70b-instruct", name: "Llama 3.3 70B Instruct (NVIDIA)" },
-      { id: "deepseek-ai/deepseek-r1", name: "DeepSeek R1 (NVIDIA NIM)" },
-      { id: "deepseek-ai/deepseek-v3", name: "DeepSeek V3 (NVIDIA NIM)" },
-      { id: "mistralai/mistral-large-2411", name: "Mistral Large 2411 (NVIDIA)" },
-      { id: "google/gemma-2-27b-it", name: "Gemma 2 27B IT (NVIDIA)" },
-      { id: "nvidia/nemotron-4-340b-instruct", name: "Nemotron 4 340B (NVIDIA)" },
-      { id: "microsoft/phi-3-mini-128k-instruct", name: "Phi-3 Mini 128k (NVIDIA)" },
-      { id: "qwen/qwen2.5-72b-instruct", name: "Qwen 2.5 72B Instruct (NVIDIA)" },
-    ],
+    models: [],
   },
   {
     id: "zcode",
@@ -270,4 +261,49 @@ export function recordProviderKeyFailure(providerId: string, key: string, status
   } else {
     stats.cooldownUntil = Date.now() + 10_000;
   }
+}
+
+/** Fetch models from provider REST API endpoint dynamically. */
+export async function fetchProviderModels(provider: ProviderConfig): Promise<ProviderModel[]> {
+  if (!provider.baseUrl) return [];
+  const key = provider.keys?.[0] || (provider.id === "opencode" ? "public" : "");
+  const headers: Record<string, string> = {
+    "User-Agent": "routecode/1.3.0",
+  };
+  if (key) {
+    if (provider.type === "openai") {
+      headers["authorization"] = `Bearer ${key}`;
+    } else {
+      headers["x-api-key"] = key;
+    }
+  }
+
+  const url = `${provider.baseUrl.replace(/\/+$/, "")}/models`;
+  try {
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { data?: Array<{ id: string; name?: string }>; models?: Array<{ id: string; name?: string }> };
+    const list = Array.isArray(data.data) ? data.data : (Array.isArray(data.models) ? data.models : []);
+    return list.map((m) => ({
+      id: m.id,
+      name: m.name ?? m.id,
+    }));
+  } catch (err) {
+    console.error(`Failed to fetch models dynamically for provider ${provider.name}:`, err);
+  }
+  return [];
+}
+
+/** Fetch live models for a provider and update providers.json. */
+export async function syncProviderModels(providerId: string): Promise<ProviderModel[]> {
+  const providers = loadProviders();
+  const p = providers.find((x) => x.id === providerId);
+  if (!p) return [];
+
+  const fetched = await fetchProviderModels(p);
+  if (fetched.length > 0) {
+    p.models = fetched;
+    saveProviders(providers);
+  }
+  return fetched;
 }

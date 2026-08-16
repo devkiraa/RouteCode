@@ -15,7 +15,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PROJECT_ROOT, loadSettings, saveSettings, loadSystem, saveSystem } from "./config";
-import { loadProviders, saveProviders, getEnabledProviderModels, findProviderForModel, selectProviderKey, recordProviderKeyFailure, getProviderKeyRpm, type ProviderConfig } from "./providers";
+import { loadProviders, saveProviders, syncProviderModels, getEnabledProviderModels, findProviderForModel, selectProviderKey, recordProviderKeyFailure, getProviderKeyRpm, type ProviderConfig } from "./providers";
 import { anthropicToOpenAIPayload, openAIToAnthropicResponse, transformOpenAiSSEToAnthropic, type AnthropicPayload } from "./openai_translator";
 
 export interface RouterDeps {
@@ -694,6 +694,11 @@ export function createRouterServer(deps: RouterDeps) {
       }
       saveProviders(body.providers);
       log(`Updated providers registry (${body.providers.length} configured)`);
+      for (const p of body.providers) {
+        if (p.enabled) {
+          syncProviderModels(p.id).catch(() => {});
+        }
+      }
       return handleGetProviders();
     } catch {
       return errorResponse(400, "invalid_request", "Invalid JSON payload.");
