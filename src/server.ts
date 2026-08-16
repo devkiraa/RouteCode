@@ -619,7 +619,7 @@ export function createRouterServer(deps: RouterDeps) {
           const rpm = getProviderKeyRpm(p.id, rawKey);
           keysResult.push({
             key: rawKey,
-            label: `${p.name} key#${i + 1} (…${rawKey.slice(-4)})`,
+            label: `key#${i + 1} (…${rawKey.slice(-4)})`,
             providerId: p.id,
             providerName: p.name,
             healthy: true,
