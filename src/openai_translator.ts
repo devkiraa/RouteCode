@@ -117,26 +117,57 @@ export function anthropicToOpenAIPayload(payload: AnthropicPayload): OpenAIPaylo
 export function openAIToAnthropicResponse(openAiResp: unknown, requestedModel: string): Record<string, unknown> {
   const resp = openAiResp as {
     id?: string;
-    choices?: Array<{ message?: { content?: string; reasoning_content?: string; text?: string } }>;
+    choices?: Array<{
+      finish_reason?: string;
+      message?: {
+        content?: string;
+        reasoning_content?: string;
+        text?: string;
+        tool_calls?: Array<{
+          id?: string;
+          function?: { name?: string; arguments?: string };
+        }>;
+      };
+    }>;
     usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
 
-  const msg = resp?.choices?.[0]?.message;
+  const choice = resp?.choices?.[0];
+  const msg = choice?.message;
   let choiceContent = msg?.content || msg?.reasoning_content || msg?.text || "";
   const id = resp?.id || `msg_${Math.random().toString(36).slice(2, 12)}`;
+
+  const contentBlocks: Array<Record<string, unknown>> = [];
+  if (choiceContent) {
+    contentBlocks.push({ type: "text", text: choiceContent });
+  }
+
+  let stopReason = "end_turn";
+  if (Array.isArray(msg?.tool_calls) && msg.tool_calls.length > 0) {
+    stopReason = "tool_use";
+    for (const tc of msg.tool_calls) {
+      let inputObj = {};
+      try {
+        if (tc.function?.arguments) inputObj = JSON.parse(tc.function.arguments);
+      } catch {}
+      contentBlocks.push({
+        type: "tool_use",
+        id: tc.id || `toolu_${Math.random().toString(36).slice(2, 12)}`,
+        name: tc.function?.name || "tool",
+        input: inputObj,
+      });
+    }
+  }
+
+  if (choice?.finish_reason === "length") stopReason = "max_tokens";
 
   return {
     id,
     type: "message",
     role: "assistant",
     model: requestedModel,
-    content: [
-      {
-        type: "text",
-        text: choiceContent,
-      },
-    ],
-    stop_reason: "end_turn",
+    content: contentBlocks,
+    stop_reason: stopReason,
     stop_sequence: null,
     usage: {
       input_tokens: resp?.usage?.prompt_tokens || 0,
@@ -145,7 +176,7 @@ export function openAIToAnthropicResponse(openAiResp: unknown, requestedModel: s
   };
 }
 
-/** Transform an OpenAI SSE stream into an Anthropic SSE stream. */
+/** Transform an OpenAI SSE stream into an Anthropic SSE stream with full tool call translation. */
 export function transformOpenAiSSEToAnthropic(
   openAiStream: ReadableStream<Uint8Array>,
   model: string,
@@ -155,12 +186,50 @@ export function transformOpenAiSSEToAnthropic(
   const encoder = new TextEncoder();
   let buffer = "";
   let messageStarted = false;
+  let textBlockStarted = false;
   const msgId = `msg_${Math.random().toString(36).slice(2, 12)}`;
+
+  // Track active tool call state: openAiToolIndex -> { anthropicIndex, id, name }
+  const toolCallState = new Map<number, { anthropicIndex: number; id: string; name: string }>();
+  let nextAnthropicBlockIndex = 0;
+  let lastFinishReason: string | null = null;
 
   return new ReadableStream({
     async start(controller) {
       function sendAnthropicEvent(event: string, data: unknown) {
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      }
+
+      function ensureMessageStarted() {
+        if (!messageStarted) {
+          messageStarted = true;
+          sendAnthropicEvent("message_start", {
+            type: "message_start",
+            message: {
+              id: msgId,
+              type: "message",
+              role: "assistant",
+              model,
+              content: [],
+              stop_reason: null,
+              stop_sequence: null,
+              usage: { input_tokens: 0, output_tokens: 0 },
+            },
+          });
+        }
+      }
+
+      function ensureTextBlockStarted() {
+        ensureMessageStarted();
+        if (!textBlockStarted) {
+          textBlockStarted = true;
+          const index = nextAnthropicBlockIndex++;
+          sendAnthropicEvent("content_block_start", {
+            type: "content_block_start",
+            index,
+            content_block: { type: "text", text: "" },
+          });
+        }
       }
 
       try {
@@ -180,37 +249,67 @@ export function transformOpenAiSSEToAnthropic(
 
             try {
               const parsed = JSON.parse(dataStr);
-              const deltaObj = parsed.choices?.[0]?.delta;
-              const deltaContent = deltaObj?.content ?? deltaObj?.reasoning_content ?? deltaObj?.text;
+              const choice = parsed.choices?.[0];
+              if (!choice) continue;
 
-              if (!messageStarted) {
-                messageStarted = true;
-                sendAnthropicEvent("message_start", {
-                  type: "message_start",
-                  message: {
-                    id: msgId,
-                    type: "message",
-                    role: "assistant",
-                    model,
-                    content: [],
-                    stop_reason: null,
-                    stop_sequence: null,
-                    usage: { input_tokens: 0, output_tokens: 0 },
-                  },
-                });
-                sendAnthropicEvent("content_block_start", {
-                  type: "content_block_start",
-                  index: 0,
-                  content_block: { type: "text", text: "" },
-                });
+              if (choice.finish_reason) {
+                lastFinishReason = choice.finish_reason;
               }
 
+              const deltaObj = choice.delta;
+              if (!deltaObj) continue;
+
+              const deltaContent = deltaObj.content ?? deltaObj.reasoning_content ?? deltaObj.text;
+
+              // 1. Text content delta
               if (deltaContent) {
+                ensureTextBlockStarted();
                 sendAnthropicEvent("content_block_delta", {
                   type: "content_block_delta",
                   index: 0,
                   delta: { type: "text_delta", text: deltaContent },
                 });
+              }
+
+              // 2. Tool calls delta
+              if (Array.isArray(deltaObj.tool_calls)) {
+                ensureMessageStarted();
+
+                for (const tc of deltaObj.tool_calls) {
+                  const openAiIdx = tc.index ?? 0;
+                  let state = toolCallState.get(openAiIdx);
+
+                  if (!state) {
+                    const anthropicIdx = nextAnthropicBlockIndex++;
+                    const toolId = tc.id || `toolu_${Math.random().toString(36).slice(2, 12)}`;
+                    const toolName = tc.function?.name || "tool";
+                    state = { anthropicIndex: anthropicIdx, id: toolId, name: toolName };
+                    toolCallState.set(openAiIdx, state);
+
+                    sendAnthropicEvent("content_block_start", {
+                      type: "content_block_start",
+                      index: anthropicIdx,
+                      content_block: {
+                        type: "tool_use",
+                        id: state.id,
+                        name: state.name,
+                        input: {},
+                      },
+                    });
+                  }
+
+                  const argsChunk = tc.function?.arguments;
+                  if (argsChunk) {
+                    sendAnthropicEvent("content_block_delta", {
+                      type: "content_block_delta",
+                      index: state.anthropicIndex,
+                      delta: {
+                        type: "input_json_delta",
+                        partial_json: argsChunk,
+                      },
+                    });
+                  }
+                }
               }
             } catch {
               /* ignore parse errors on SSE line */
@@ -219,10 +318,28 @@ export function transformOpenAiSSEToAnthropic(
         }
 
         if (messageStarted) {
-          sendAnthropicEvent("content_block_stop", { type: "content_block_stop", index: 0 });
+          if (textBlockStarted) {
+            sendAnthropicEvent("content_block_stop", { type: "content_block_stop", index: 0 });
+          }
+
+          for (const state of toolCallState.values()) {
+            sendAnthropicEvent("content_block_stop", {
+              type: "content_block_stop",
+              index: state.anthropicIndex,
+            });
+          }
+
+          const hasTools = toolCallState.size > 0;
+          let stopReason = "end_turn";
+          if (hasTools || lastFinishReason === "tool_calls") {
+            stopReason = "tool_use";
+          } else if (lastFinishReason === "length") {
+            stopReason = "max_tokens";
+          }
+
           sendAnthropicEvent("message_delta", {
             type: "message_delta",
-            delta: { stop_reason: "end_turn", stop_sequence: null },
+            delta: { stop_reason: stopReason, stop_sequence: null },
             usage: { output_tokens: 0 },
           });
           sendAnthropicEvent("message_stop", { type: "message_stop" });
