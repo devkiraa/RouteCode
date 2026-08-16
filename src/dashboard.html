@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%232563EB'/><path d='M30 72L50 28L70 72M38 52H62' stroke='white' stroke-width='9' stroke-linecap='round' stroke-linejoin='round'/><circle cx='50' cy='28' r='7' fill='%2360A5FA'/></svg>">
   <style>
     :root {
       --bg: #F8FAFC;
@@ -456,10 +457,18 @@
     <!-- Header -->
     <header>
       <div class="brand">
-        <div class="brand-icon">R</div>
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 18L12 6L18 18M8.5 13H15.5" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="6" r="2" fill="#93C5FD"/>
+          </svg>
+        </div>
         <div class="brand-text">
-          <h1>RouteCode</h1>
-          <p>Claude Code × OpenRouter Failover Gateway</p>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h1>RouteCode</h1>
+            <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 9999px; background: var(--primary-subtle); color: var(--primary); border: 1px solid rgba(37,99,235,0.2);">OPEN SOURCE</span>
+          </div>
+          <p>Claude Code × Multi-Provider Failover Gateway</p>
         </div>
       </div>
 
@@ -591,6 +600,23 @@
         </div>
       </div>
     </div>
+
+    <!-- Footer -->
+    <footer style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text-muted); flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="width: 20px; height: 20px; background: var(--primary); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 11px;">R</div>
+        <span style="font-weight: 700; color: var(--text-primary);">RouteCode Gateway v1.3.0</span>
+        <span>— Open Source Multi-Provider AI Proxy</span>
+      </div>
+      <div style="display: flex; gap: 16px; align-items: center;">
+        <a href="https://github.com/musistudio/claude-code-router" target="_blank" style="color: var(--text-secondary); text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub Repository
+        </a>
+        <span>•</span>
+        <span>MIT License</span>
+      </div>
+    </footer>
   </div>
 
   <!-- Log Detail Modal -->
@@ -651,6 +677,19 @@
       }
     }
 
+    function getProviderLogoSvg(providerId) {
+      if (providerId === "nvidia") {
+        return `<svg width="14" height="14" viewBox="0 0 24 24" fill="#76B900" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l7 4.5-7 4.5z"/></svg>`;
+      } else if (providerId === "openrouter") {
+        return `<svg width="14" height="14" viewBox="0 0 24 24" fill="#6366F1" xmlns="http://www.w3.org/2000/svg"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zm-9 9h7v7H4v-7zm9 0h7v7h-7v-7z"/></svg>`;
+      } else if (providerId === "opencode") {
+        return `<svg width="14" height="14" viewBox="0 0 24 24" fill="#10B981" xmlns="http://www.w3.org/2000/svg"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>`;
+      } else if (providerId === "zcode") {
+        return `<svg width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L2 22h20L12 2zm0 4.5L18.5 19h-13L12 6.5z"/></svg>`;
+      }
+      return `<svg width="14" height="14" viewBox="0 0 24 24" fill="var(--primary)" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8"/></svg>`;
+    }
+
     let testingKeysSet = new Set();
     let keyTestResultsMap = new Map();
 
@@ -691,7 +730,10 @@
           <div class="key-card">
             <div>
               <div class="key-card-meta-row">
-                <span class="provider-pill" title="${providerTag}">${providerTag}</span>
+                <span class="provider-pill" title="${providerTag}" style="display: inline-flex; align-items: center; gap: 6px;">
+                  ${getProviderLogoSvg(k.providerId)}
+                  <span>${providerTag}</span>
+                </span>
                 ${badgeHtml}
               </div>
               <div class="key-title">${k.label}</div>
