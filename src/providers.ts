@@ -265,7 +265,7 @@ export function recordProviderKeyFailure(providerId: string, key: string, status
 
 /** Fetch models from provider REST API endpoint dynamically. */
 export async function fetchProviderModels(provider: ProviderConfig): Promise<ProviderModel[]> {
-  if (!provider.baseUrl) return [];
+  if (!provider.baseUrl || provider.id === "openrouter") return [];
   const key = provider.keys?.[0] || (provider.id === "opencode" ? "public" : "");
   const headers: Record<string, string> = {
     "User-Agent": "routecode/1.3.0",
@@ -282,6 +282,9 @@ export async function fetchProviderModels(provider: ProviderConfig): Promise<Pro
   try {
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
     if (!res.ok) return [];
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) return [];
+
     const data = (await res.json()) as { data?: Array<{ id: string; name?: string }>; models?: Array<{ id: string; name?: string }> };
     const list = Array.isArray(data.data) ? data.data : (Array.isArray(data.models) ? data.models : []);
     return list.map((m) => ({
@@ -289,7 +292,7 @@ export async function fetchProviderModels(provider: ProviderConfig): Promise<Pro
       name: m.name ?? m.id,
     }));
   } catch (err) {
-    console.error(`Failed to fetch models dynamically for provider ${provider.name}:`, err);
+    /* ignore network / parse errors silently */
   }
   return [];
 }
