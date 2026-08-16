@@ -117,11 +117,12 @@ export function anthropicToOpenAIPayload(payload: AnthropicPayload): OpenAIPaylo
 export function openAIToAnthropicResponse(openAiResp: unknown, requestedModel: string): Record<string, unknown> {
   const resp = openAiResp as {
     id?: string;
-    choices?: Array<{ message?: { content?: string } }>;
+    choices?: Array<{ message?: { content?: string; reasoning_content?: string; text?: string } }>;
     usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
 
-  const choiceContent = resp?.choices?.[0]?.message?.content || "";
+  const msg = resp?.choices?.[0]?.message;
+  let choiceContent = msg?.content || msg?.reasoning_content || msg?.text || "";
   const id = resp?.id || `msg_${Math.random().toString(36).slice(2, 12)}`;
 
   return {
@@ -179,7 +180,8 @@ export function transformOpenAiSSEToAnthropic(
 
             try {
               const parsed = JSON.parse(dataStr);
-              const deltaContent = parsed.choices?.[0]?.delta?.content;
+              const deltaObj = parsed.choices?.[0]?.delta;
+              const deltaContent = deltaObj?.content ?? deltaObj?.reasoning_content ?? deltaObj?.text;
 
               if (!messageStarted) {
                 messageStarted = true;

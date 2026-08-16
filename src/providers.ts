@@ -124,7 +124,7 @@ export function getEnabledProviderModels(): ProviderModelInfo[] {
       for (const item of p.models) {
         const rawId = typeof item === "string" ? item : item.id;
         const displayName = typeof item === "object" && item.name ? item.name : rawId;
-        const fullId = p.id === "openrouter" ? rawId : `${p.id}/${rawId}`;
+        const fullId = (p.id === "openrouter" || rawId.startsWith(`${p.id}/`)) ? rawId : `${p.id}/${rawId}`;
         result.push({
           id: fullId,
           name: displayName,
@@ -143,25 +143,28 @@ export function findProviderForModel(modelId: string): { provider: ProviderConfi
   if (modelId.startsWith("test/")) return null;
   const providers = loadProviders();
 
-  // 1) Prefix match (e.g. "opencode/deepseek-v4-flash-free" -> provider "opencode", rawModelId "deepseek-v4-flash-free")
-  if (modelId.includes("/")) {
-    const parts = modelId.split("/");
-    const prefix = parts[0];
-    const rawModelId = parts.slice(1).join("/");
-    const p = providers.find((x) => x.id === prefix && x.enabled);
-    if (p && p.id !== "openrouter") return { provider: p, rawModelId };
-  }
-
-  // 2) Exact model list match across all non-openrouter providers
+  // 1) Direct exact model ID match across all enabled non-openrouter providers
   for (const p of providers) {
     if (!p.enabled || p.id === "openrouter") continue;
     if (Array.isArray(p.models)) {
       for (const m of p.models) {
         const id = typeof m === "string" ? m : m.id;
-        if (id === modelId || `${p.id}/${id}` === modelId) {
+        if (id === modelId) {
           return { provider: p, rawModelId: id };
         }
       }
+    }
+  }
+
+  // 2) Prefix match (e.g. "opencode/deepseek-v4-flash-free" -> provider "opencode", rawModelId "deepseek-v4-flash-free")
+  if (modelId.includes("/")) {
+    const parts = modelId.split("/");
+    const prefix = parts[0];
+    const rawModelId = parts.slice(1).join("/");
+    const p = providers.find((x) => x.id === prefix && x.enabled);
+    if (p && p.id !== "openrouter") {
+      const exactInModels = p.models?.some((m) => (typeof m === "string" ? m : m.id) === modelId);
+      return { provider: p, rawModelId: exactInModels ? modelId : rawModelId };
     }
   }
 
