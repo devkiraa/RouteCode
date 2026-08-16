@@ -22,6 +22,7 @@ export interface ProviderConfig {
   baseUrl: string;
   enabled: boolean;
   keys: string[];
+  rpmLimit?: number;
   models?: Array<string | ProviderModel>;
 }
 
@@ -33,6 +34,25 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
     baseUrl: "https://openrouter.ai/api",
     enabled: true,
     keys: [],
+  },
+  {
+    id: "nvidia",
+    name: "NVIDIA NIM API (build.nvidia.com)",
+    type: "openai",
+    baseUrl: "https://integrate.api.nvidia.com/v1",
+    enabled: false,
+    keys: [],
+    rpmLimit: 40,
+    models: [
+      { id: "meta/llama-3.3-70b-instruct", name: "Llama 3.3 70B Instruct (NVIDIA)" },
+      { id: "deepseek-ai/deepseek-r1", name: "DeepSeek R1 (NVIDIA NIM)" },
+      { id: "deepseek-ai/deepseek-v3", name: "DeepSeek V3 (NVIDIA NIM)" },
+      { id: "mistralai/mistral-large-2411", name: "Mistral Large 2411 (NVIDIA)" },
+      { id: "google/gemma-2-27b-it", name: "Gemma 2 27B IT (NVIDIA)" },
+      { id: "nvidia/nemotron-4-340b-instruct", name: "Nemotron 4 340B (NVIDIA)" },
+      { id: "microsoft/phi-3-mini-128k-instruct", name: "Phi-3 Mini 128k (NVIDIA)" },
+      { id: "qwen/qwen2.5-72b-instruct", name: "Qwen 2.5 72B Instruct (NVIDIA)" },
+    ],
   },
   {
     id: "zcode",
@@ -155,4 +175,99 @@ export function findProviderForModel(modelId: string): { provider: ProviderConfi
   }
 
   return null;
+}
+
+interface ProviderKeyStats {
+  timestamps: number[];
+  cooldownUntil: number;
+  failures: number;
+  successes: number;
+}
+
+const providerKeyStats = new Map<string, Map<string, ProviderKeyStats>>();
+
+function getKeyStats(providerId: string, key: string): ProviderKeyStats {
+  let pMap = providerKeyStats.get(providerId);
+  if (!pMap) {
+    pMap = new Map();
+    providerKeyStats.set(providerId, pMap);
+  }
+  let stats = pMap.get(key);
+  if (!stats) {
+    stats = { timestamps: [], cooldownUntil: 0, failures: 0, successes: 0 };
+    pMap.set(key, stats);
+  }
+  return stats;
+}
+
+export function getProviderKeyRpm(providerId: string, key: string): number {
+  const stats = getKeyStats(providerId, key);
+  const now = Date.now();
+  stats.timestamps = stats.timestamps.filter((t) => now - t < 60_000);
+  return stats.timestamps.length;
+}
+
+export interface SelectedProviderKey {
+  key: string;
+  keyIndex: number;
+  currentRpm: number;
+  maxRpm: number;
+}
+
+export function selectProviderKey(provider: ProviderConfig): SelectedProviderKey | null {
+  if (!provider.keys || provider.keys.length === 0) {
+    if (provider.id === "opencode") {
+      return { key: "public", keyIndex: 0, currentRpm: 1, maxRpm: 120 };
+    }
+    return null;
+  }
+  const now = Date.now();
+  const maxRpm = provider.rpmLimit ?? (provider.id === "nvidia" ? 40 : 120);
+
+  const candidates: Array<{ key: string; index: number; rpm: number }> = [];
+
+  for (let i = 0; i < provider.keys.length; i++) {
+    const k = provider.keys[i];
+    const stats = getKeyStats(provider.id, k);
+    stats.timestamps = stats.timestamps.filter((t) => now - t < 60_000);
+
+    if (now >= stats.cooldownUntil && stats.timestamps.length < maxRpm) {
+      candidates.push({ key: k, index: i, rpm: stats.timestamps.length });
+    }
+  }
+
+  if (candidates.length === 0) {
+    const best = provider.keys
+      .map((k, i) => {
+        const stats = getKeyStats(provider.id, k);
+        stats.timestamps = stats.timestamps.filter((t) => now - t < 60_000);
+        return { key: k, index: i, rpm: stats.timestamps.length, cooldownUntil: stats.cooldownUntil };
+      })
+      .sort((a, b) => a.rpm - b.rpm || a.cooldownUntil - b.cooldownUntil)[0];
+
+    if (!best) return null;
+    recordProviderKeyRequest(provider.id, best.key);
+    return { key: best.key, keyIndex: best.index, currentRpm: best.rpm + 1, maxRpm };
+  }
+
+  candidates.sort((a, b) => a.rpm - b.rpm);
+  const picked = candidates[0];
+  recordProviderKeyRequest(provider.id, picked.key);
+  return { key: picked.key, keyIndex: picked.index, currentRpm: picked.rpm + 1, maxRpm };
+}
+
+export function recordProviderKeyRequest(providerId: string, key: string): void {
+  const stats = getKeyStats(providerId, key);
+  stats.timestamps.push(Date.now());
+  stats.successes++;
+}
+
+export function recordProviderKeyFailure(providerId: string, key: string, status: number): void {
+  const stats = getKeyStats(providerId, key);
+  stats.failures++;
+  if (status === 429) {
+    stats.cooldownUntil = Date.now() + 60_000;
+  } else {
+    stats.cooldownUntil = Date.now() + 10_000;
+  }
 }

@@ -15,7 +15,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PROJECT_ROOT, loadSettings, saveSettings, loadSystem, saveSystem } from "./config";
-import { loadProviders, saveProviders, getEnabledProviderModels, findProviderForModel, type ProviderConfig } from "./providers";
+import { loadProviders, saveProviders, getEnabledProviderModels, findProviderForModel, selectProviderKey, recordProviderKeyFailure, getProviderKeyRpm, type ProviderConfig } from "./providers";
 import { anthropicToOpenAIPayload, openAIToAnthropicResponse, transformOpenAiSSEToAnthropic, type AnthropicPayload } from "./openai_translator";
 
 export interface RouterDeps {
@@ -205,16 +205,22 @@ export function createRouterServer(deps: RouterDeps) {
         try {
           if (matchedProvider.type === "openai") {
             const openAiBody = anthropicToOpenAIPayload({ ...forwarded, model: targetModelId });
+            const selectedKeyInfo = selectProviderKey(matchedProvider);
+            const apiKey = selectedKeyInfo?.key || (matchedProvider.id === "opencode" ? "public" : "");
             const openAiHeaders: Record<string, string> = {
               "content-type": "application/json",
               "User-Agent": "opencode/cli",
             };
-            const apiKey = matchedProvider.keys?.[0] || (matchedProvider.id === "opencode" ? "public" : "");
             if (apiKey) {
               openAiHeaders["authorization"] = `Bearer ${apiKey}`;
             }
 
             const targetUrl = `${matchedProvider.baseUrl.replace(/\/+$/, "")}/chat/completions`;
+            if (selectedKeyInfo) {
+              log(`${id} → custom provider "${matchedProvider.name}" (key #${selectedKeyInfo.keyIndex + 1}, RPM: ${selectedKeyInfo.currentRpm}/${selectedKeyInfo.maxRpm}) for model "${targetModelId}"`);
+            } else {
+              log(`${id} → custom provider "${matchedProvider.name}" for model "${targetModelId}"`);
+            }
             const upstream = await fetch(targetUrl, {
               method: "POST",
               headers: openAiHeaders,
@@ -229,7 +235,7 @@ export function createRouterServer(deps: RouterDeps) {
                 timestamp: new Date().toISOString(),
                 requestedModel: requested,
                 resolvedModel: candidate,
-                keyLabel: matchedProvider.name,
+                keyLabel: selectedKeyInfo ? `${matchedProvider.name} key#${selectedKeyInfo.keyIndex + 1}` : matchedProvider.name,
                 status: upstream.status,
                 latencyMs: duration,
                 retried: triedFallback,
@@ -250,6 +256,9 @@ export function createRouterServer(deps: RouterDeps) {
               }
             } else {
               const errText = await upstream.text();
+              if (selectedKeyInfo) {
+                recordProviderKeyFailure(matchedProvider.id, selectedKeyInfo.key, upstream.status);
+              }
               lastStatus = upstream.status;
               lastBody = errText || JSON.stringify({ error: { type: "api_error", message: `Provider ${matchedProvider.name} returned status ${upstream.status}` } });
               log(`${id} ✗ ${matchedProvider.name}: status ${upstream.status} — ${errText.slice(0, 150)}`);
@@ -266,7 +275,8 @@ export function createRouterServer(deps: RouterDeps) {
           } else {
             // Anthropic format (e.g. ZCode API)
             const anthropicHeaders: Record<string, string> = { "content-type": "application/json" };
-            const apiKey = matchedProvider.keys?.[0] || "zcode";
+            const selectedKeyInfo = selectProviderKey(matchedProvider);
+            const apiKey = selectedKeyInfo?.key || matchedProvider.keys?.[0] || "zcode";
             if (apiKey) {
               anthropicHeaders["x-api-key"] = apiKey;
             }
@@ -285,7 +295,7 @@ export function createRouterServer(deps: RouterDeps) {
                 timestamp: new Date().toISOString(),
                 requestedModel: requested,
                 resolvedModel: candidate,
-                keyLabel: matchedProvider.name,
+                keyLabel: selectedKeyInfo ? `${matchedProvider.name} key#${selectedKeyInfo.keyIndex + 1}` : matchedProvider.name,
                 status: upstream.status,
                 latencyMs: duration,
                 retried: triedFallback,
@@ -294,6 +304,9 @@ export function createRouterServer(deps: RouterDeps) {
               return new Response(upstream.body, { status: upstream.status, headers: upstream.headers });
             } else {
               const errText = await upstream.text();
+              if (selectedKeyInfo) {
+                recordProviderKeyFailure(matchedProvider.id, selectedKeyInfo.key, upstream.status);
+              }
               lastStatus = upstream.status;
               lastBody = errText || JSON.stringify({ error: { type: "api_error", message: `Provider ${matchedProvider.name} returned status ${upstream.status}` } });
               log(`${id} ✗ ${matchedProvider.name}: status ${upstream.status} — ${errText.slice(0, 150)}`);
@@ -661,7 +674,16 @@ export function createRouterServer(deps: RouterDeps) {
   }
 
   function handleGetProviders(): Response {
-    return Response.json({ providers: loadProviders() });
+    const providers = loadProviders();
+    const result = providers.map((p) => ({
+      ...p,
+      keysWithRpm: p.keys.map((k) => ({
+        key: k,
+        rpm: getProviderKeyRpm(p.id, k),
+        maxRpm: p.rpmLimit ?? (p.id === "nvidia" ? 40 : 120),
+      })),
+    }));
+    return Response.json({ providers: result });
   }
 
   async function handleUpdateProviders(req: Request): Promise<Response> {
