@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import { PROJECT_ROOT, loadSettings, saveSettings, loadSystem, saveSystem } from "./config";
 import { loadProviders, saveProviders, syncProviderModels, getEnabledProviderModels, findProviderForModel, selectProviderKey, recordProviderKeyFailure, getProviderKeyRpm, testProviderKey, type ProviderConfig } from "./providers";
 import { anthropicToOpenAIPayload, openAIToAnthropicResponse, transformOpenAiSSEToAnthropic, type AnthropicPayload } from "./openai_translator";
-import { loadMemory, saveMemory, injectMemoryIntoSystem } from "./memory";
+import { loadMemory, saveMemory, injectMemoryIntoSystem, extractAutoMemoryFromPayload } from "./memory";
 
 export interface RouterDeps {
   port: number;
@@ -174,6 +174,9 @@ export function createRouterServer(deps: RouterDeps) {
       error: { type: "api_error", message: "All OpenRouter keys failed." },
     });
     let triedFallback = false;
+
+    // Asynchronously trigger auto-memory extraction (0ms latency impact)
+    setTimeout(() => extractAutoMemoryFromPayload(payload), 0);
 
     const memoryInjectedPayload = {
       ...payload,
