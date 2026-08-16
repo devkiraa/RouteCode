@@ -332,12 +332,12 @@ export async function testProviderKey(providerId: string, key: string): Promise<
       if (res.ok) {
         const json = (await res.json()) as { data?: { label?: string; limit_remaining?: number } };
         const label = json?.data?.label ? ` (${json.data.label})` : "";
-        return { ok: true, status: res.status, message: `Valid OpenRouter API key${label} ✓` };
+        return { ok: true, status: res.status, message: `Endpoint verified ✓ (HTTP 200 — OpenRouter Key Active${label})` };
       } else {
-        return { ok: false, status: res.status, message: `OpenRouter error HTTP ${res.status}` };
+        return { ok: false, status: res.status, message: `Endpoint check failed ✗ (HTTP ${res.status})` };
       }
     } catch (err: any) {
-      return { ok: false, status: 500, message: err?.message || "Connection timeout" };
+      return { ok: false, status: 500, message: `Endpoint check failed ✗ (${err?.message || "Connection timeout"})` };
     }
   }
 
@@ -366,12 +366,12 @@ export async function testProviderKey(providerId: string, key: string): Promise<
         const list = Array.isArray(json?.data) ? json.data : (Array.isArray(json?.models) ? json.models : []);
         modelCount = list.length;
       } catch {}
-      return { ok: true, status: res.status, message: `Key verified ✓ (${modelCount} models active)`, modelCount };
+      return { ok: true, status: res.status, message: `Endpoint verified ✓ (HTTP 200 — ${modelCount} models active)`, modelCount };
     } else {
       const errText = await res.text();
-      return { ok: false, status: res.status, message: `Provider status ${res.status}: ${errText.slice(0, 100)}` };
+      return { ok: false, status: res.status, message: `Endpoint check failed ✗ (HTTP ${res.status}: ${errText.slice(0, 100)})` };
     }
   } catch (err: any) {
-    return { ok: false, status: 500, message: err?.message || "Connection timeout" };
+    return { ok: false, status: 500, message: `Endpoint check failed ✗ (${err?.message || "Connection timeout"})` };
   }
 }

@@ -628,6 +628,9 @@
       }
     }
 
+    let testingKeysSet = new Set();
+    let keyTestResultsMap = new Map();
+
     function renderKeys() {
       const container = document.getElementById('key-list-container');
       if (keyList.length === 0) {
@@ -645,6 +648,22 @@
           ? Math.min(100, Math.round(((k.rpm || 0) / (k.maxRpm || 40)) * 100))
           : Math.min(100, Math.round(((k.usageDaily || 0) / (k.dailyReqLimit || 50)) * 100));
 
+        const isTesting = testingKeysSet.has(k.key);
+        const testResult = keyTestResultsMap.get(k.key);
+
+        let badgeHtml = '';
+        if (k.isBuiltIn) {
+          badgeHtml = `<span class="key-badge key-badge-healthy">BUILT-IN ✓</span>`;
+        } else if (isTesting) {
+          badgeHtml = `<span class="key-badge key-badge-cooldown" style="background-color: var(--primary-subtle); color: var(--primary);">TESTING...</span>`;
+        } else if (testResult) {
+          badgeHtml = testResult.ok
+            ? `<span class="key-badge key-badge-healthy" title="${testResult.message}">ENDPOINT VERIFIED ✓</span>`
+            : `<span class="key-badge key-badge-cooldown" style="background-color: var(--danger-subtle); color: var(--danger);" title="${testResult.message}">FAILED ✗</span>`;
+        } else {
+          badgeHtml = `<span class="key-badge ${isHealthy ? 'key-badge-healthy' : 'key-badge-cooldown'}">${isHealthy ? 'HEALTHY ✓' : `COOLDOWN (${k.cooldownSecondsLeft}s)`}</span>`;
+        }
+
         return `
           <div class="key-card">
             <div class="key-card-header">
@@ -652,9 +671,7 @@
                 <span class="key-label">${k.label}</span>
                 <span style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 9999px; background: var(--primary-subtle); color: var(--primary);">${providerTag}</span>
               </div>
-              <span class="key-badge ${k.isBuiltIn ? 'key-badge-healthy' : (isHealthy ? 'key-badge-healthy' : 'key-badge-cooldown')}">
-                ${k.isBuiltIn ? 'BUILT-IN ✓' : (isHealthy ? 'HEALTHY ✓' : `COOLDOWN (${k.cooldownSecondsLeft}s)`)}
-              </span>
+              ${badgeHtml}
             </div>
             <div class="key-secret-box">
               <span>${displayKey}</span>
@@ -669,11 +686,12 @@
                 <div class="progress-bar-fill" style="width: ${pct}%;"></div>
               </div>
             </div>
+            ${testResult ? `<div style="font-size: 11px; font-weight: 600; margin-top: 8px; color: ${testResult.ok ? 'var(--success)' : 'var(--danger)'};">${testResult.message}</div>` : ''}
             <div style="display: flex; justify-content: space-between; margin-top: 12px; font-size: 11px; align-items: center;">
               <span style="color: var(--text-muted);">${k.isBuiltIn ? 'No key required' : `Successes: ${k.successes}`}</span>
               ${!k.isBuiltIn ? `
                 <div style="display: flex; gap: 6px;">
-                  <button class="btn" style="padding: 2px 8px; font-size: 11px; color: var(--primary);" onclick="testKey('${k.key}', '${k.providerId}', this)">Test</button>
+                  <button class="btn" style="padding: 2px 8px; font-size: 11px; color: var(--primary);" ${isTesting ? 'disabled' : ''} onclick="testKey('${k.key}', '${k.providerId}')">${isTesting ? 'Testing...' : 'Test'}</button>
                   <button class="btn" style="padding: 2px 8px; font-size: 11px; color: var(--danger);" onclick="deleteKey('${k.key}', '${k.providerId}')">Delete</button>
                 </div>
               ` : ''}
@@ -717,7 +735,7 @@
       statusDiv.style.display = 'block';
       statusDiv.style.backgroundColor = 'var(--primary-subtle)';
       statusDiv.style.color = 'var(--primary)';
-      statusDiv.textContent = 'Sending test request to provider API...';
+      statusDiv.textContent = 'Sending test request to provider endpoint...';
 
       try {
         const res = await fetch('/api/keys/test', {
@@ -732,25 +750,25 @@
         if (data.ok) {
           statusDiv.style.backgroundColor = 'var(--success-subtle)';
           statusDiv.style.color = 'var(--success)';
-          statusDiv.textContent = `✓ ${data.message}`;
+          statusDiv.textContent = `Endpoint verified ✓ (${data.message})`;
         } else {
           statusDiv.style.backgroundColor = 'var(--danger-subtle)';
           statusDiv.style.color = 'var(--danger)';
-          statusDiv.textContent = `✗ ${data.message}`;
+          statusDiv.textContent = `Endpoint check failed ✗ (${data.message})`;
         }
       } catch (e) {
         btn.disabled = false;
         btn.textContent = 'Test Key';
         statusDiv.style.backgroundColor = 'var(--danger-subtle)';
         statusDiv.style.color = 'var(--danger)';
-        statusDiv.textContent = `✗ Connection error: ${e.message}`;
+        statusDiv.textContent = `Endpoint check failed ✗ (Connection error: ${e.message})`;
       }
     }
 
-    async function testKey(keyStr, providerId, btnEl) {
-      const origText = btnEl.textContent;
-      btnEl.disabled = true;
-      btnEl.textContent = 'Testing...';
+    async function testKey(keyStr, providerId) {
+      testingKeysSet.add(keyStr);
+      renderKeys();
+
       try {
         const res = await fetch('/api/keys/test', {
           method: 'POST',
@@ -758,27 +776,19 @@
           body: JSON.stringify({ key: keyStr, providerId }),
         });
         const data = await res.json();
-        btnEl.disabled = false;
+        testingKeysSet.delete(keyStr);
+
         if (data.ok) {
-          btnEl.textContent = '✓ Valid';
-          btnEl.style.color = 'var(--success)';
+          keyTestResultsMap.set(keyStr, { ok: true, message: data.message || 'Endpoint verified ✓' });
         } else {
-          btnEl.textContent = '✗ Invalid';
-          btnEl.style.color = 'var(--danger)';
+          keyTestResultsMap.set(keyStr, { ok: false, message: data.message || 'Endpoint check failed ✗' });
         }
-        setTimeout(() => {
-          btnEl.textContent = origText;
-          btnEl.style.color = 'var(--primary)';
-        }, 3000);
       } catch (e) {
-        btnEl.disabled = false;
-        btnEl.textContent = '✗ Error';
-        btnEl.style.color = 'var(--danger)';
-        setTimeout(() => {
-          btnEl.textContent = origText;
-          btnEl.style.color = 'var(--primary)';
-        }, 3000);
+        testingKeysSet.delete(keyStr);
+        keyTestResultsMap.set(keyStr, { ok: false, message: `Connection error: ${e.message}` });
       }
+
+      renderKeys();
     }
 
     async function submitAddKey() {
