@@ -510,16 +510,18 @@
 
       <!-- Add Key Form -->
       <div id="add-key-form" style="display: none; margin-bottom: 20px; background-color: var(--bg); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border);">
-        <div style="display: flex; gap: 12px; align-items: center;">
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
           <select id="new-key-provider" class="select-input" style="width: 220px;">
             <option value="openrouter">OpenRouter (Default)</option>
             <option value="nvidia">NVIDIA NIM API (build.nvidia.com)</option>
             <option value="zcode">ZCode API</option>
           </select>
-          <input type="text" id="new-key-input" class="input-field" placeholder="API key (e.g. nvapi-... or sk-or-v1-...)" autocomplete="off">
+          <input type="text" id="new-key-input" class="input-field" style="flex: 1; min-width: 240px;" placeholder="API key (e.g. nvapi-... or sk-or-v1-...)" autocomplete="off">
+          <button class="btn" onclick="testNewKey()" id="btn-test-new-key">Test Key</button>
           <button class="btn btn-primary" onclick="submitAddKey()">Save Key</button>
           <button class="btn" onclick="toggleAddForm()">Cancel</button>
         </div>
+        <div id="test-key-status" style="display: none; margin-top: 10px; font-size: 12px; font-weight: 600; padding: 8px 12px; border-radius: var(--radius-sm);"></div>
       </div>
 
       <!-- Key Cards Grid -->
@@ -667,9 +669,14 @@
                 <div class="progress-bar-fill" style="width: ${pct}%;"></div>
               </div>
             </div>
-            <div style="display: flex; justify-content: space-between; margin-top: 12px; font-size: 11px;">
+            <div style="display: flex; justify-content: space-between; margin-top: 12px; font-size: 11px; align-items: center;">
               <span style="color: var(--text-muted);">${k.isBuiltIn ? 'No key required' : `Successes: ${k.successes}`}</span>
-              ${!k.isBuiltIn ? `<button class="btn" style="padding: 2px 6px; font-size: 11px; color: var(--danger);" onclick="deleteKey('${k.key}', '${k.providerId}')">Delete</button>` : ''}
+              ${!k.isBuiltIn ? `
+                <div style="display: flex; gap: 6px;">
+                  <button class="btn" style="padding: 2px 8px; font-size: 11px; color: var(--primary);" onclick="testKey('${k.key}', '${k.providerId}', this)">Test</button>
+                  <button class="btn" style="padding: 2px 8px; font-size: 11px; color: var(--danger);" onclick="deleteKey('${k.key}', '${k.providerId}')">Delete</button>
+                </div>
+              ` : ''}
             </div>
           </div>
         `;
@@ -684,7 +691,94 @@
 
     function toggleAddForm() {
       const form = document.getElementById('add-key-form');
+      const statusDiv = document.getElementById('test-key-status');
+      if (statusDiv) statusDiv.style.display = 'none';
       form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function testNewKey() {
+      const input = document.getElementById('new-key-input');
+      const providerSelect = document.getElementById('new-key-provider');
+      const statusDiv = document.getElementById('test-key-status');
+      const btn = document.getElementById('btn-test-new-key');
+
+      const key = input.value.trim();
+      const providerId = providerSelect.value;
+      if (!key) {
+        statusDiv.style.display = 'block';
+        statusDiv.style.backgroundColor = 'var(--danger-subtle)';
+        statusDiv.style.color = 'var(--danger)';
+        statusDiv.textContent = 'Please enter an API key to test.';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Testing...';
+      statusDiv.style.display = 'block';
+      statusDiv.style.backgroundColor = 'var(--primary-subtle)';
+      statusDiv.style.color = 'var(--primary)';
+      statusDiv.textContent = 'Sending test request to provider API...';
+
+      try {
+        const res = await fetch('/api/keys/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, providerId }),
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        btn.textContent = 'Test Key';
+
+        if (data.ok) {
+          statusDiv.style.backgroundColor = 'var(--success-subtle)';
+          statusDiv.style.color = 'var(--success)';
+          statusDiv.textContent = `✓ ${data.message}`;
+        } else {
+          statusDiv.style.backgroundColor = 'var(--danger-subtle)';
+          statusDiv.style.color = 'var(--danger)';
+          statusDiv.textContent = `✗ ${data.message}`;
+        }
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = 'Test Key';
+        statusDiv.style.backgroundColor = 'var(--danger-subtle)';
+        statusDiv.style.color = 'var(--danger)';
+        statusDiv.textContent = `✗ Connection error: ${e.message}`;
+      }
+    }
+
+    async function testKey(keyStr, providerId, btnEl) {
+      const origText = btnEl.textContent;
+      btnEl.disabled = true;
+      btnEl.textContent = 'Testing...';
+      try {
+        const res = await fetch('/api/keys/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: keyStr, providerId }),
+        });
+        const data = await res.json();
+        btnEl.disabled = false;
+        if (data.ok) {
+          btnEl.textContent = '✓ Valid';
+          btnEl.style.color = 'var(--success)';
+        } else {
+          btnEl.textContent = '✗ Invalid';
+          btnEl.style.color = 'var(--danger)';
+        }
+        setTimeout(() => {
+          btnEl.textContent = origText;
+          btnEl.style.color = 'var(--primary)';
+        }, 3000);
+      } catch (e) {
+        btnEl.disabled = false;
+        btnEl.textContent = '✗ Error';
+        btnEl.style.color = 'var(--danger)';
+        setTimeout(() => {
+          btnEl.textContent = origText;
+          btnEl.style.color = 'var(--primary)';
+        }, 3000);
+      }
     }
 
     async function submitAddKey() {

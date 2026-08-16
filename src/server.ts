@@ -15,7 +15,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PROJECT_ROOT, loadSettings, saveSettings, loadSystem, saveSystem } from "./config";
-import { loadProviders, saveProviders, syncProviderModels, getEnabledProviderModels, findProviderForModel, selectProviderKey, recordProviderKeyFailure, getProviderKeyRpm, type ProviderConfig } from "./providers";
+import { loadProviders, saveProviders, syncProviderModels, getEnabledProviderModels, findProviderForModel, selectProviderKey, recordProviderKeyFailure, getProviderKeyRpm, testProviderKey, type ProviderConfig } from "./providers";
 import { anthropicToOpenAIPayload, openAIToAnthropicResponse, transformOpenAiSSEToAnthropic, type AnthropicPayload } from "./openai_translator";
 
 export interface RouterDeps {
@@ -893,6 +893,21 @@ export function createRouterServer(deps: RouterDeps) {
     return errorResponse(500, "api_error", "Could not load models template.");
   }
 
+  async function handleTestKey(req: Request): Promise<Response> {
+    try {
+      const body = (await req.json()) as { key?: string; providerId?: string };
+      const rawKey = body?.key?.trim();
+      const providerId = body?.providerId?.trim() || "openrouter";
+      if (!rawKey) {
+        return errorResponse(400, "invalid_request", "Key string is required.");
+      }
+      const res = await testProviderKey(providerId, rawKey);
+      return Response.json(res);
+    } catch {
+      return errorResponse(400, "invalid_request", "Invalid JSON payload.");
+    }
+  }
+
   async function handler(req: Request): Promise<Response> {
     const url = new URL(req.url);
     const path = url.pathname;
@@ -909,6 +924,7 @@ export function createRouterServer(deps: RouterDeps) {
     if (req.method === "POST" && path === "/api/config") return handleUpdateConfig(req);
     if (req.method === "GET" && path === "/api/keys") return handleGetKeys();
     if (req.method === "POST" && path === "/api/keys") return handleAddKey(req);
+    if (req.method === "POST" && path === "/api/keys/test") return handleTestKey(req);
     if (req.method === "DELETE" && path === "/api/keys") return handleDeleteKey(req);
     if (req.method === "GET" && path === "/api/providers") return handleGetProviders();
     if (req.method === "POST" && path === "/api/providers") return handleUpdateProviders(req);

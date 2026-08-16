@@ -310,3 +310,68 @@ export async function syncProviderModels(providerId: string): Promise<ProviderMo
   }
   return fetched;
 }
+
+export interface KeyTestResult {
+  ok: boolean;
+  status: number;
+  message: string;
+  modelCount?: number;
+}
+
+/** Test an API key against provider endpoint to verify validity. */
+export async function testProviderKey(providerId: string, key: string): Promise<KeyTestResult> {
+  const rawKey = key.trim();
+  if (!rawKey) return { ok: false, status: 400, message: "Key string is required." };
+
+  if (providerId === "openrouter") {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/auth/key", {
+        headers: { Authorization: `Bearer ${rawKey}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { data?: { label?: string; limit_remaining?: number } };
+        const label = json?.data?.label ? ` (${json.data.label})` : "";
+        return { ok: true, status: res.status, message: `Valid OpenRouter API key${label} ✓` };
+      } else {
+        return { ok: false, status: res.status, message: `OpenRouter error HTTP ${res.status}` };
+      }
+    } catch (err: any) {
+      return { ok: false, status: 500, message: err?.message || "Connection timeout" };
+    }
+  }
+
+  const providers = loadProviders();
+  const provider = providers.find((p) => p.id === providerId) || {
+    id: providerId,
+    name: providerId === "nvidia" ? "NVIDIA NIM API" : providerId,
+    type: "openai",
+    baseUrl: providerId === "nvidia" ? "https://integrate.api.nvidia.com/v1" : "https://integrate.api.nvidia.com/v1",
+  };
+
+  const headers: Record<string, string> = { "User-Agent": "routecode/1.3.0" };
+  if (provider.type === "openai" || providerId === "nvidia") {
+    headers["authorization"] = `Bearer ${rawKey}`;
+  } else {
+    headers["x-api-key"] = rawKey;
+  }
+
+  const url = `${provider.baseUrl.replace(/\/+$/, "")}/models`;
+  try {
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(12_000) });
+    if (res.ok) {
+      let modelCount = 0;
+      try {
+        const json = (await res.json()) as { data?: any[]; models?: any[] };
+        const list = Array.isArray(json?.data) ? json.data : (Array.isArray(json?.models) ? json.models : []);
+        modelCount = list.length;
+      } catch {}
+      return { ok: true, status: res.status, message: `Key verified ✓ (${modelCount} models active)`, modelCount };
+    } else {
+      const errText = await res.text();
+      return { ok: false, status: res.status, message: `Provider status ${res.status}: ${errText.slice(0, 100)}` };
+    }
+  } catch (err: any) {
+    return { ok: false, status: 500, message: err?.message || "Connection timeout" };
+  }
+}
