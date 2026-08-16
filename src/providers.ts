@@ -50,7 +50,7 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
     name: "ZCode API",
     type: "anthropic",
     baseUrl: "https://zcode.z.ai/api/v1/zcode-plan/anthropic",
-    enabled: false,
+    enabled: true,
     keys: [],
     models: [
       { id: "GLM-5.2", name: "GLM-5.2" },
@@ -62,7 +62,7 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
     name: "OpenCode Public (Chat Completions)",
     type: "openai",
     baseUrl: "https://opencode.ai/zen/v1",
-    enabled: false,
+    enabled: true,
     keys: [],
     models: [
       { id: "north-mini-code-free", name: "North Mini Code Free" },

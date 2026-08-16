@@ -490,8 +490,8 @@
     <div class="section-card">
       <div class="section-header">
         <div>
-          <div class="section-title">OpenRouter API Key Management</div>
-          <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Automatic proactive health scoring & rotation across account keys.</p>
+          <div class="section-title">API Keys & Provider Pool</div>
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Automatic health scoring, key rotation, and rate-limit tracking across all providers.</p>
         </div>
         <div style="display: flex; gap: 12px; align-items: center;">
           <div style="display: flex; align-items: center; gap: 6px;">
@@ -511,7 +511,12 @@
       <!-- Add Key Form -->
       <div id="add-key-form" style="display: none; margin-bottom: 20px; background-color: var(--bg); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border);">
         <div style="display: flex; gap: 12px; align-items: center;">
-          <input type="text" id="new-key-input" class="input-field" placeholder="sk-or-v1-..." autocomplete="off">
+          <select id="new-key-provider" class="select-input" style="width: 220px;">
+            <option value="openrouter">OpenRouter (Default)</option>
+            <option value="nvidia">NVIDIA NIM API (build.nvidia.com)</option>
+            <option value="zcode">ZCode API</option>
+          </select>
+          <input type="text" id="new-key-input" class="input-field" placeholder="API key (e.g. nvapi-... or sk-or-v1-...)" autocomplete="off">
           <button class="btn btn-primary" onclick="submitAddKey()">Save Key</button>
           <button class="btn" onclick="toggleAddForm()">Cancel</button>
         </div>
@@ -520,23 +525,6 @@
       <!-- Key Cards Grid -->
       <div id="key-list-container" class="key-cards-grid">
         <div style="grid-column: 1/-1; text-align: center; padding: 24px; color: var(--text-muted);">Loading API keys...</div>
-      </div>
-    </div>
-
-    <!-- Upstream Model Providers Section -->
-    <div class="section-card">
-      <div class="section-header">
-        <div>
-          <div class="section-title">Upstream Model Providers & Custom APIs</div>
-          <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Connect OpenRouter, ZCode API (Anthropic format), OpenCode Public (OpenAI format), or custom endpoints.</p>
-        </div>
-        <button class="btn btn-primary" onclick="toggleAddProviderModal()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-          Add Custom Provider
-        </button>
-      </div>
-      <div id="providers-list-container" style="display: flex; flex-direction: column; gap: 12px;">
-        <div style="text-align: center; padding: 16px; color: var(--text-muted);">Loading providers...</div>
       </div>
     </div>
 
@@ -641,35 +629,38 @@
     function renderKeys() {
       const container = document.getElementById('key-list-container');
       if (keyList.length === 0) {
-        container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 24px; color: var(--text-muted);">No API keys found in settings.json. Click 'Add API Key' above to add your first key.</div>`;
+        container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 24px; color: var(--text-muted);">No API keys found. Click 'Add API Key' above to connect OpenRouter, NVIDIA NIM, or custom provider keys.</div>`;
         return;
       }
 
       container.innerHTML = keyList.map((k, index) => {
         const isRevealed = revealedKeys.has(k.key);
-        const displayKey = isRevealed ? k.key : maskKey(k.key);
+        const displayKey = k.isBuiltIn ? 'Public Built-in Endpoint' : (isRevealed ? k.key : maskKey(k.key));
         const isHealthy = k.healthy;
-        const usageDaily = k.usageDaily || 0;
-        const dailyReqLimit = k.dailyReqLimit || 50;
-        const pct = Math.min(100, Math.round((usageDaily / dailyReqLimit) * 100));
+        const providerTag = k.providerName || 'OpenRouter';
+        const rpmText = k.rpm !== undefined ? `RPM: ${k.rpm} / ${k.maxRpm || 40}` : `Daily Reqs: ${k.usageDaily || 0} / ${k.dailyReqLimit || 50}`;
+        const pct = k.rpm !== undefined 
+          ? Math.min(100, Math.round(((k.rpm || 0) / (k.maxRpm || 40)) * 100))
+          : Math.min(100, Math.round(((k.usageDaily || 0) / (k.dailyReqLimit || 50)) * 100));
 
         return `
           <div class="key-card">
             <div class="key-card-header">
-              <span class="key-label">${k.label}</span>
-              <span class="key-badge ${isHealthy ? 'key-badge-healthy' : 'key-badge-cooldown'}">
-                ${isHealthy ? 'HEALTHY ✓' : `COOLDOWN (${k.cooldownSecondsLeft}s)`}
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="key-label">${k.label}</span>
+                <span style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 9999px; background: var(--primary-subtle); color: var(--primary);">${providerTag}</span>
+              </div>
+              <span class="key-badge ${k.isBuiltIn ? 'key-badge-healthy' : (isHealthy ? 'key-badge-healthy' : 'key-badge-cooldown')}">
+                ${k.isBuiltIn ? 'BUILT-IN ✓' : (isHealthy ? 'HEALTHY ✓' : `COOLDOWN (${k.cooldownSecondsLeft}s)`)}
               </span>
             </div>
             <div class="key-secret-box">
               <span>${displayKey}</span>
-              <button class="btn" style="padding: 2px 6px; font-size: 11px;" onclick="toggleKeyReveal('${k.key}')">
-                ${isRevealed ? 'Hide' : 'Show'}
-              </button>
+              ${!k.isBuiltIn ? `<button class="btn" style="padding: 2px 6px; font-size: 11px;" onclick="toggleKeyReveal('${k.key}')">${isRevealed ? 'Hide' : 'Show'}</button>` : ''}
             </div>
             <div>
               <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); font-weight: 600;">
-                <span>Daily Reqs: ${usageDaily} / ${dailyReqLimit}</span>
+                <span>${rpmText}</span>
                 <span>Score: ${k.predictiveScore ?? 100}/100</span>
               </div>
               <div class="progress-bar-bg">
@@ -677,8 +668,8 @@
               </div>
             </div>
             <div style="display: flex; justify-content: space-between; margin-top: 12px; font-size: 11px;">
-              <span style="color: var(--text-muted);">Successes: ${k.successes}</span>
-              <button class="btn" style="padding: 2px 6px; font-size: 11px; color: var(--danger);" onclick="deleteKey('${k.key}')">Delete</button>
+              <span style="color: var(--text-muted);">${k.isBuiltIn ? 'No key required' : `Successes: ${k.successes}`}</span>
+              ${!k.isBuiltIn ? `<button class="btn" style="padding: 2px 6px; font-size: 11px; color: var(--danger);" onclick="deleteKey('${k.key}', '${k.providerId}')">Delete</button>` : ''}
             </div>
           </div>
         `;
@@ -698,13 +689,15 @@
 
     async function submitAddKey() {
       const input = document.getElementById('new-key-input');
+      const providerSelect = document.getElementById('new-key-provider');
       const val = input.value.trim();
+      const providerId = providerSelect ? providerSelect.value : 'openrouter';
       if (!val) return;
       try {
         const res = await fetch('/api/keys', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: val }),
+          body: JSON.stringify({ key: val, providerId }),
         });
         if (res.ok) {
           input.value = '';
@@ -716,13 +709,13 @@
       }
     }
 
-    async function deleteKey(keyStr) {
+    async function deleteKey(keyStr, providerId) {
       if (!confirm('Are you sure you want to remove this key from the pool?')) return;
       try {
         const res = await fetch('/api/keys', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: keyStr }),
+          body: JSON.stringify({ key: keyStr, providerId }),
         });
         if (res.ok) fetchKeys();
       } catch (e) {

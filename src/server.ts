@@ -567,11 +567,35 @@ export function createRouterServer(deps: RouterDeps) {
   function handleGetKeys(): Response {
     const s = loadSettings();
     const poolList = deps.keyPool.list();
-    const result = s.openrouterKeys.map((rawKey, i) => {
+    const providers = loadProviders();
+
+    const keysResult: Array<{
+      key: string;
+      label: string;
+      providerId: string;
+      providerName: string;
+      healthy: boolean;
+      cooldownSecondsLeft: number;
+      successes: number;
+      failures: number;
+      rpm?: number;
+      maxRpm?: number;
+      predictiveScore?: number;
+      isFreeTier?: boolean;
+      limitRemaining?: number | null;
+      usageDaily?: number;
+      dailyReqLimit?: number;
+      isBuiltIn?: boolean;
+    }> = [];
+
+    // 1) OpenRouter Keys
+    s.openrouterKeys.forEach((rawKey, i) => {
       const state = poolList.find((k) => k.key === rawKey);
-      return {
+      keysResult.push({
         key: rawKey,
         label: state ? state.label : `key#${i + 1} (…${rawKey.slice(-4)})`,
+        providerId: "openrouter",
+        providerName: "OpenRouter",
         healthy: state ? Date.now() >= state.cooldownUntil : true,
         cooldownSecondsLeft: state ? Math.max(0, Math.ceil((state.cooldownUntil - Date.now()) / 1000)) : 0,
         successes: state ? state.successes : 0,
@@ -584,24 +608,89 @@ export function createRouterServer(deps: RouterDeps) {
         limitRemaining: state?.limitRemaining,
         usageDaily: state?.usageDaily,
         dailyReqLimit: state?.dailyReqLimit,
-      };
+      });
     });
-    return Response.json({ keys: result });
+
+    // 2) Custom Provider Keys & Keyless Public Providers
+    for (const p of providers) {
+      if (p.id === "openrouter") continue;
+      if (p.keys && p.keys.length > 0) {
+        p.keys.forEach((rawKey, i) => {
+          const rpm = getProviderKeyRpm(p.id, rawKey);
+          keysResult.push({
+            key: rawKey,
+            label: `${p.name} key#${i + 1} (…${rawKey.slice(-4)})`,
+            providerId: p.id,
+            providerName: p.name,
+            healthy: true,
+            cooldownSecondsLeft: 0,
+            successes: 0,
+            failures: 0,
+            rpm,
+            maxRpm: p.rpmLimit ?? 40,
+            predictiveScore: 100,
+          });
+        });
+      } else if (p.id === "opencode" || p.id === "zcode") {
+        // Built-in public provider
+        keysResult.push({
+          key: "public",
+          label: `${p.name} (Built-in)`,
+          providerId: p.id,
+          providerName: p.name,
+          healthy: true,
+          cooldownSecondsLeft: 0,
+          successes: 0,
+          failures: 0,
+          rpm: getProviderKeyRpm(p.id, "public"),
+          maxRpm: 120,
+          predictiveScore: 100,
+          isBuiltIn: true,
+        });
+      }
+    }
+
+    return Response.json({ keys: keysResult });
   }
 
   async function handleAddKey(req: Request): Promise<Response> {
     try {
-      const body = (await req.json()) as { key?: string };
+      const body = (await req.json()) as { key?: string; providerId?: string };
       const rawKey = body?.key?.trim();
+      const providerId = body?.providerId?.trim() || "openrouter";
       if (!rawKey) {
         return errorResponse(400, "invalid_request", "Key string is required.");
       }
-      const s = loadSettings();
-      if (!s.openrouterKeys.includes(rawKey)) {
-        s.openrouterKeys.push(rawKey);
-        saveSettings(s);
-        deps.keyPool.updateKeys(s.openrouterKeys);
-        log(`Added new API key (…${rawKey.slice(-4)}) to pool`);
+
+      if (providerId === "openrouter") {
+        const s = loadSettings();
+        if (!s.openrouterKeys.includes(rawKey)) {
+          s.openrouterKeys.push(rawKey);
+          saveSettings(s);
+          deps.keyPool.updateKeys(s.openrouterKeys);
+          log(`Added new OpenRouter API key (…${rawKey.slice(-4)}) to pool`);
+        }
+      } else {
+        const providers = loadProviders();
+        let p = providers.find((x) => x.id === providerId);
+        if (!p) {
+          p = {
+            id: providerId,
+            name: providerId,
+            type: "openai",
+            baseUrl: "https://integrate.api.nvidia.com/v1",
+            enabled: true,
+            keys: [],
+          };
+          providers.push(p);
+        }
+        if (!p.keys.includes(rawKey)) {
+          p.keys.push(rawKey);
+          p.enabled = true;
+          saveProviders(providers);
+          log(`Added new ${p.name} key (…${rawKey.slice(-4)}) to pool`);
+          syncProviderModels(p.id).catch(() => {});
+        }
       }
       return handleGetKeys();
     } catch {
@@ -611,20 +700,38 @@ export function createRouterServer(deps: RouterDeps) {
 
   async function handleDeleteKey(req: Request): Promise<Response> {
     try {
-      const body = (await req.json()) as { key?: string };
+      const body = (await req.json()) as { key?: string; providerId?: string };
       const rawKey = body?.key?.trim();
+      const providerId = body?.providerId?.trim();
       if (!rawKey) {
         return errorResponse(400, "invalid_request", "Key string is required.");
       }
+
       const s = loadSettings();
-      const updated = s.openrouterKeys.filter((k) => k !== rawKey);
-      if (updated.length === s.openrouterKeys.length) {
-        return errorResponse(404, "not_found", "Key not found in pool.");
+      if (s.openrouterKeys.includes(rawKey)) {
+        s.openrouterKeys = s.openrouterKeys.filter((k) => k !== rawKey);
+        saveSettings(s);
+        deps.keyPool.updateKeys(s.openrouterKeys);
+        log(`Removed OpenRouter key (…${rawKey.slice(-4)}) from pool`);
       }
-      s.openrouterKeys = updated;
-      saveSettings(s);
-      deps.keyPool.updateKeys(s.openrouterKeys);
-      log(`Removed API key (…${rawKey.slice(-4)}) from pool`);
+
+      const providers = loadProviders();
+      let changedProviders = false;
+      for (const p of providers) {
+        if (!providerId || p.id === providerId) {
+          if (p.keys.includes(rawKey)) {
+            p.keys = p.keys.filter((k) => k !== rawKey);
+            if (p.keys.length === 0 && p.id !== "opencode" && p.id !== "zcode" && p.id !== "openrouter") {
+              p.enabled = false;
+            }
+            changedProviders = true;
+          }
+        }
+      }
+      if (changedProviders) {
+        saveProviders(providers);
+      }
+
       return handleGetKeys();
     } catch {
       return errorResponse(400, "invalid_request", "Invalid JSON payload.");
